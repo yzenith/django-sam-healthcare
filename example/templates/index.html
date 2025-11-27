@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HL7 → FHIR → 837 Healthcare Integration Demo</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+  <style>
+    body {
+      font-family: "Inter", Arial, sans-serif;
+      background: linear-gradient(to bottom right, #e6f2ff, #f8fbff);
+      margin: 0;
+      padding: 0;
+      color: #2d3e50;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 30px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #004a99;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+
+    h3 {
+      margin-top: 35px;
+      color: #005caa;
+      border-left: 5px solid #0074d9;
+      padding-left: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      border: 1px solid #b0c4de;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #f7fbff;
+      transition: 0.2s;
+    }
+
+    textarea:focus {
+      border-color: #4da3ff;
+      background: #ffffff;
+      outline: none;
+      box-shadow: 0 0 6px rgba(30,144,255,0.4);
+    }
+
+    button {
+      display: inline-block;
+      background: #0074d9;
+      color: white;
+      padding: 12px 28px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #005fb8;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    }
+
+    pre {
+      background: #f4f8fc;
+      border: 1px solid #d0e1f3;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+    }
+
+    footer {
+      margin-top: 50px;
+      text-align: center;
+      color: #4c6b87;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <h1>HL7 → FHIR → 837 Healthcare Integration Demo</h1>
+
+  <h3>Step 1: Paste HL7 v2 ADT Message</h3>
+  <textarea id="hl7-input">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
+PID|1||123456^^^HOSP^MR||DOE^JOHN||19900520|M|||789 PINE ST^^ALLEN^TX^75013
+PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
+
+  <button id="btn-transform">Transform</button>
+
+  <h3>FHIR Patient</h3>
+  <pre id="patient-json">(waiting for input...)</pre>
+
+  <h3>FHIR Encounter</h3>
+  <pre id="encounter-json">(waiting for input...)</pre>
+
+  <h3>EDI 837 (Simplified)</h3>
+  <pre id="x12-837">(waiting for input...)</pre>
+
+  <footer>
+    <p>Created by <strong>Sam Yan</strong> • Healthcare Integration Demo (HL7 → FHIR → X12)</p>
+  </footer>
+
+</div>
+
+<script>
+  $("#btn-transform").on("click", function () {
+    const hl7 = $("#hl7-input").val();
+    $.ajax({
+      url: "/api/transform/",
+      method: "POST",
+      contentType: "application/json",
+      dataType: "json",
+      data: JSON.stringify({ hl7_message: hl7 }),
+      success: function (data) {
+        $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+        $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
+        $("#x12-837").text(data.x12_837);
+      },
+      error: function (xhr) {
+        alert("Error: " + xhr.responseText);
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -1,3 +1,4 @@
+import json
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -19,8 +20,26 @@ class HL7TransformView(APIView):
     renderer_classes = [JSONRenderer]
 
     def post(self, request, *args, **kwargs):
-        serializer = HL7TransformRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        hl7_message = serializer.validated_data["hl7_message"]
+        """
+        Accepts either:
+        1) JSON:  {"hl7_message": "<HL7 text>"}
+        2) Plain text: raw HL7 message in the body
+        """
+        body = request.body.decode("utf-8", errors="ignore").strip()
+
+        hl7_message = ""
+
+        # Try JSON first
+        if request.content_type and "application/json" in request.content_type:
+            try:
+                data = json.loads(body)
+                hl7_message = data.get("hl7_message", "")
+            except ValueError:
+                # Not valid JSON, fall back to raw body
+                hl7_message = body
+        else:
+            # Non-JSON: treat the whole body as HL7 text
+            hl7_message = body
+
         result = hl7_to_all(hl7_message)
         return Response(result, status=status.HTTP_200_OK)

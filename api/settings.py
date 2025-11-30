@@ -89,9 +89,6 @@ DATABASES = {
 # On Vercel (or anywhere you set DATABASE_URL), override with Neon Postgres
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# On Vercel (or anywhere you set DATABASE_URL), override with Neon Postgres
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
 if DATABASE_URL:
     url = urlparse(DATABASE_URL)
 

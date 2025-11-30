@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Recent Mirth HL7 Messages</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f9ff; }
+    .container { max-width: 1000px; margin: 30px auto; background: #fff;
+                 padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #e0e6f0; font-size: 14px; }
+    th { text-align: left; background: #f0f4ff; }
+    .hl7-cell { font-family: monospace; max-width: 450px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>Recent HL7 Messages from Mirth</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Type</th>
+        <th>Patient ID</th>
+        <th>Encounter?</th>
+        <th>837 Length</th>
+        <th>HL7 (preview)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.created_at }}</td>
+        <td>{{ log.message_type }}</td>
+        <td>{{ log.patient_id }}</td>
+        <td>{{ log.encounter_present }}</td>
+        <td>{{ log.x12_length }}</td>
+        <td class="hl7-cell">{{ log.raw_hl7|truncatechars:120 }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No messages yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

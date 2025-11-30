@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 
 from pathlib import Path
 import os
-import dj_database_url
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -89,11 +89,24 @@ DATABASES = {
 # On Vercel (or anywhere you set DATABASE_URL), override with Neon Postgres
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# On Vercel (or anywhere you set DATABASE_URL), override with Neon Postgres
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 if DATABASE_URL:
-    DATABASES["default"] = dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,  # keep connections open / pooled
-    )
+    url = urlparse(DATABASE_URL)
+
+    # Example: postgresql://user:password@host:port/dbname?sslmode=require
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": url.path[1:],              # strip leading "/"
+        "USER": url.username,
+        "PASSWORD": url.password,
+        "HOST": url.hostname,
+        "PORT": url.port or 5432,
+        "OPTIONS": {
+            "sslmode": "require",
+        },
+    }
 
 
 # Password validation

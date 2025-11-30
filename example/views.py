@@ -1,10 +1,11 @@
 import json
+import warnings
 from django.http import HttpResponseForbidden
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from django.shortcuts import render 
+from django.shortcuts import get_object_or_404, render 
 
 from .serializers import HL7TransformRequestSerializer
 from .hl7_utils import hl7_to_all
@@ -14,6 +15,11 @@ from .models import HL7MessageLog
 def mirth_messages(request):
     logs = HL7MessageLog.objects.order_by("-created_at")[:20]
     return render(request, "mirth_messages.html", {"logs": logs})
+
+def mirth_message_detail(request, pk):
+    log = get_object_or_404(HL7MessageLog, pk=pk)
+    return render(request, "mirth_message_detail.html", {"log": log})
+
 
 # ⬇⬇⬇ add this function-based view
 def index(request):
@@ -36,11 +42,19 @@ class HL7TransformView(APIView):
 
         hl7_message = ""
 
+
         # Try JSON first
         if request.content_type and "application/json" in request.content_type:
             try:
                 data = json.loads(body)
                 hl7_message = data.get("hl7_message", "")
+
+                if not hl7_message.startswith("MSH"):
+                    return Response({"error": "Invalid HL7 message"}, status=400)
+                if "ADT" not in hl7_message:
+                    # warn but still process
+                    pass
+                
             except ValueError:
                 # Not valid JSON, fall back to raw body
                 hl7_message = body
@@ -53,39 +67,45 @@ class HL7TransformView(APIView):
 
 
 class MirthHL7View(APIView):
-    renderer_classes = [JSONRenderer]
-    MIRTH_SECRET = "super-secret-demo-token"  # in real life use env var
-
     def post(self, request, *args, **kwargs):
-        # 1) Read raw body
-        body = request.body.decode("utf-8", errors="ignore").strip()
-
-        key = request.headers.get("X-Integration-Key")
-        if key != self.MIRTH_SECRET:
+        # 1) Very simple auth
+        if request.headers.get("X-Integration-Key") != "super-secret-demo-token":  # in real life use env var
             return HttpResponseForbidden("Invalid integration key")
 
-        # 2) Handle both plain text and JSON (future-proof)
-        hl7_message = ""
-        if request.content_type and "application/json" in request.content_type:
+        # 2) Read raw body (plain text or JSON)
+        body = request.body.decode("utf-8", errors="ignore").strip()
+        hl7_message = body
+        if "application/json" in (request.content_type or ""):
             try:
                 data = json.loads(body)
-                hl7_message = data.get("hl7_message", "")
+                hl7_message = data.get("hl7_message", body)
             except ValueError:
                 hl7_message = body
-        else:
-            hl7_message = body
 
-        # 3) Transform HL7 → FHIR → 837
+        # 3) Transform HL7 → (patient, encounter, x12)
         result = hl7_to_all(hl7_message)
+        patient = result.get("patient") or {}
+        encounter = result.get("encounter")
+        x12 = result.get("x12_837") or ""
 
-        # You can shape response specifically for Mirth
+        # 4) ✅ SAVE LOG TO DB
+        log = HL7MessageLog.objects.create(
+            source_system="MIRTH",
+            message_type="ADT-A01",
+            raw_hl7=hl7_message,
+            patient_id=patient.get("id") or "",
+            encounter_present=bool(encounter),
+            x12_length=len(x12),
+        )
+
+        # 5) Return summary to Mirth
         return Response(
             {
                 "status": "ok",
-                "patientId": (result["patient"] or {}).get("id"),
-                "hasEncounter": result["encounter"] is not None,
-                "x12Length": len(result["x12_837"] or ""),
-                "data": result,  # full payload if you want
+                "log_id": log.id,
+                "patientId": log.patient_id,
+                "hasEncounter": log.encounter_present,
+                "x12Length": log.x12_length,
             },
             status=status.HTTP_200_OK,
         )

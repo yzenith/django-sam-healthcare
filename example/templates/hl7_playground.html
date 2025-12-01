@@ -29,7 +29,7 @@
 <body>
 
 <div class="nav">
-  <strong>HL7 Playground</strong>
+  <strong>HL7 Playground (ADT + ORU support)</strong>
   &nbsp;&nbsp;
   <a href="/">Home</a>
   <a href="/mirth/messages/">Mirth Messages</a>
@@ -60,6 +60,16 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
   </div>
 
   <div class="section">
+    <h3>FHIR DiagnosticReport (ORU)</h3>
+    <pre id="report-json">(ORU results will appear here)</pre>
+  </div>
+  
+  <div class="section">
+    <h3>FHIR Observations (ORU)</h3>
+    <pre id="obs-json">(ORU results will appear here)</pre>
+  </div>
+  
+  <div class="section">
     <h3>Generated X12 837 Claim</h3>
     <pre id="x12-837">(Results will appear here)</pre>
   </div>
@@ -77,11 +87,35 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
       dataType: "json",
       data: JSON.stringify({ hl7_message: hl7 }),
 
+      // success: function (data) {
+      //   $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+      //   $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
+      //   $("#x12-837").text(data.x12_837 || "(No 837 generated)");
+      // },
+
       success: function (data) {
-        $("#patient-json").text(JSON.stringify(data.patient, null, 2));
-        $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
-        $("#x12-837").text(data.x12_837 || "(No 837 generated)");
-      },
+
+        if (data.patient) {
+          $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+        }
+
+        if (data.encounter) {
+          $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
+        }
+
+        if (data.x12_837) {
+          $("#x12-837").text(data.x12_837);
+        }
+
+        if (data.report) {
+          $("#report-json").text(JSON.stringify(data.report, null, 2));
+        }
+
+        if (data.observations) {
+          $("#obs-json").text(JSON.stringify(data.observations, null, 2));
+        }
+     },
+
 
       error: function (xhr) {
         alert("Error: " + xhr.responseText);

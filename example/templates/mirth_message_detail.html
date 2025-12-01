@@ -39,6 +39,7 @@
     </table>
   </div>
 
+
   <div class="card">
     <h3>Raw HL7 v2 Message</h3>
     <pre>{{ log.raw_hl7 }}</pre>
@@ -60,6 +61,19 @@
     <h3>Generated X12 837</h3>
     <pre>{{ x12_837 }}</pre>
   </div>
+
+  {% if log.message_type == "ORU^R01" %}
+    <div class="card">
+    <h3>FHIR DiagnosticReport</h3>
+    <pre>{{ report_json }}</pre>
+    </div>
+
+    <div class="card">
+    <h3>FHIR Observations (Lab Results)</h3>
+    <pre>{{ observations_json }}</pre>
+    </div>
+  {% endif %}
+
 
 </div>
 

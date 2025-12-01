@@ -8,7 +8,7 @@ from rest_framework.renderers import JSONRenderer
 from django.shortcuts import get_object_or_404, render 
 
 from .serializers import HL7TransformRequestSerializer
-from .hl7_utils import hl7_to_all
+from .hl7_utils import hl7_oru_to_fhir, hl7_to_all
 
 from .models import HL7MessageLog
 
@@ -36,12 +36,25 @@ def mirth_message_detail(request, pk):
     encounter = transform_result.get("encounter")
     x12_837 = transform_result.get("x12_837")
 
+
     context = {
         "log": log,
         "patient": patient,
         "encounter": encounter,
         "x12_837": x12_837,
     }
+
+    if log.message_type == "ORU^R01":
+        result = hl7_oru_to_fhir(log.raw_hl7)
+        report = result["report"]
+        observations = result["observations"]
+
+        context.update({
+            "report_json": json.dumps(report, indent=2),
+            "observations_json": json.dumps(observations, indent=2),
+        })
+
+    
     return render(request, "mirth_message_detail.html", context)
 
 
@@ -74,7 +87,7 @@ class HL7TransformView(APIView):
                 hl7_message = data.get("hl7_message", "")
 
                 if not hl7_message.startswith("MSH"):
-                    return Response({"error": "Invalid HL7 message"}, status=400)
+                    return Response({"error": "Invalid HL7 message"}, status=400)  
                 if "ADT" not in hl7_message:
                     # warn but still process
                     pass

@@ -1,6 +1,123 @@
 # app/hl7_utils.py
 from datetime import datetime
 
+def hl7_to_all(hl7_text):
+    lines = hl7_text.strip().split("\n")
+    msg_type = None
+
+    # Identify message type from MSH-9
+    for segment in lines:
+        if segment.startswith("MSH"):
+            fields = segment.split("|")
+            msg_type = fields[8]  # e.g., ADT^A01 or ORU^R01
+
+    if not msg_type:
+        return {"error": "Unable to determine HL7 message type."}
+
+    if msg_type.startswith("ADT"):
+        # Your existing ADT logic here
+        return hl7_to_all(hl7_text)
+
+    if msg_type.startswith("ORU"):
+        return hl7_oru_to_fhir(hl7_text)
+
+    return {"error": f"Unsupported HL7 message type: {msg_type}"}
+
+
+def hl7_oru_to_fhir(hl7_text):
+    """
+    Convert HL7 ORU^R01 lab messages into:
+    - FHIR DiagnosticReport
+    - FHIR Observations[]
+    """
+
+    segments = hl7_text.strip().split("\n")
+    pid = {}
+    obr = {}
+    obx_list = []
+
+    for seg in segments:
+        fields = seg.split("|")
+
+        # PID ---
+        if seg.startswith("PID"):
+            pid = {
+                "id": fields[3],
+                "name": fields[5].replace("^", " "),
+                "dob": fields[7],
+                "sex": fields[8],
+            }
+
+        # OBR ---
+        if seg.startswith("OBR"):
+            obr = {
+                "id": fields[3],
+                "code": fields[4].split("^")[0],
+                "description": fields[4].split("^")[1] if "^" in fields[4] else "",
+                "date": fields[7],
+            }
+
+        # OBX ---
+        if seg.startswith("OBX"):
+            obx = {
+                "id": fields[1],
+                "type": fields[2],
+                "code": fields[3].split("^")[0],
+                "description": fields[3].split("^")[1] if "^" in fields[3] else "",
+                "value": fields[5],
+                "unit": fields[6],
+                "ref_range": fields[7],
+                "abnormal": fields[8] if len(fields) > 8 else None,
+            }
+            obx_list.append(obx)
+
+    # --- Build FHIR Observations ---
+    fhir_observations = []
+    for obx in obx_list:
+        fhir_observations.append({
+            "resourceType": "Observation",
+            "status": "final",
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": obx["code"],
+                    "display": obx["description"]
+                }]
+            },
+            "valueString": obx["value"],
+            "unit": obx["unit"],
+            "referenceRange": obx["ref_range"],
+        })
+
+    # --- Build DiagnosticReport ---
+    diagnostic_report = {
+        "resourceType": "DiagnosticReport",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": obr.get("code"),
+                "display": obr.get("description")
+            }]
+        },
+        "subject": {"reference": f"Patient/{pid.get('id')}"},
+        "effectiveDateTime": obr.get("date"),
+        "result": [
+            {"reference": f"Observation/{i+1}"} 
+            for i in range(len(fhir_observations))
+        ],
+    }
+
+    return {
+        "report": diagnostic_report,
+        "observations": fhir_observations,
+        "patient_id": pid.get("id"),
+        "raw_hl7": hl7_text,
+        "message_type": "ORU^R01",
+    }
+
+
+
 def parse_hl7(hl7_text: str):
     """
     把 HL7 文本解析成:

@@ -43,13 +43,13 @@ This project is designed to demonstrate practical skills for healthcare integrat
 
 ```mermaid
 flowchart LR
-    EHR[External System\n(EHR / LIS / PMS)] -->|HL7 v2 ADT over TCP (MLLP)| Mirth[Mirth Connect\nTCP Listener]
+    EHR["External System<br/>(EHR / LIS / PMS)"] -->|"HL7 v2 ADT over TCP (MLLP)"| Mirth["Mirth Connect<br/>TCP Listener Channel"]
 
-    Mirth -->|HTTP POST\ntext/plain HL7| DjangoAPI[Django Healthcare API\n(Vercel Serverless)]
-    DjangoAPI -->|Parse HL7 v2| FHIR[In-memory FHIR\nPatient + Encounter]
-    FHIR -->|Map clinical data| X12[Generate X12 837\nProfessional Claim]
+    Mirth -->|"HTTP POST<br/>text/plain HL7"| DjangoAPI["Django Healthcare API<br/>(Vercel Serverless)"]
+    DjangoAPI -->|"Parse HL7 v2"| FHIR["FHIR Patient<br/>FHIR Encounter"]
+    FHIR -->|"Map clinical data"| X12["Generate X12 837<br/>Professional Claim"]
 
-    DjangoAPI -->|Insert log row| Neon[(Neon Postgres\nHL7MessageLog table)]
+    DjangoAPI -->|"Insert log row"| Neon["Neon Postgres<br/>HL7MessageLog"]
 
-    Neon -->|SELECT last 50| Dashboard[Web Dashboard\n/mirth/messages/]
-    DjangoAPI -->|JSON (Patient, Encounter, 837)| Mirth
+    Neon -->|"SELECT last 50"| Dashboard["Web Dashboard<br/>/mirth/messages/"]
+    DjangoAPI -->|"JSON (Patient, Encounter, 837)"| Mirth

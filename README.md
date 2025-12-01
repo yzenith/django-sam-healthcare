@@ -1,55 +1,200 @@
-# HL7 → FHIR → X12 837 Integration Demo
+🏥 HL7 → FHIR → X12 837 Healthcare Integration Demo
+Built by Sam Yan · Healthcare Interoperability Engineer
 
-A small end-to-end healthcare integration demo that shows how to:
+🌐 Live Demo: https://django-sam-healthcare.vercel.app/
 
-- Receive **HL7 v2 ADT** messages via **Mirth Connect**
-- Forward them to a **Django REST API** deployed on **Vercel**
-- Transform HL7 into **FHIR Patient / Encounter**
-- Generate a simplified **X12 837** claim
-- Store message logs in **Neon Postgres**
-- Visualize the pipeline via a **web dashboard**
+📡 Mirth Logs: https://django-sam-healthcare.vercel.app/mirth/messages/
 
-This project is designed to demonstrate practical skills for healthcare integration / interoperability roles (HL7, FHIR, EDI, Mirth).
+🧪 Playground: https://django-sam-healthcare.vercel.app/hl7/playground/
 
----
+🚀 Overview
 
-## Features
+This project demonstrates a complete healthcare integration pipeline, built end-to-end with real interoperability standards:
 
-- **HL7 v2 ADT → FHIR**  
-  Basic parsing of MSH / PID / PV1 segments into FHIR Patient and Encounter resources.
+HL7 v2 ADT ingestion (MLLP/TCP)
 
-- **HL7 v2 → X12 837**  
-  Generates a simplified 837P claim based on the HL7 encounter data.
+Mirth Connect TCP Listener + HTTP Sender
 
-- **Mirth Connect Integration**  
-  - Source: TCP Listener (HL7 v2.x)  
-  - Destination: HTTP Sender posting raw HL7 to the Django API
+Django REST API (Serverless Vercel)
 
-- **Microservice API**  
-  - `/api/transform/` – HL7 → FHIR + X12 (HL7 Playground)  
-  - `/api/mirth/hl7/` – HL7 endpoint used by Mirth, with logging
+FHIR resource generation (Patient + Encounter)
 
-- **Message Logging & Dashboard**  
-  - Messages persisted into Neon Postgres (`HL7MessageLog`)  
-  - `/mirth/messages/` – list of recent messages  
-  - `/mirth/messages/<id>/` – detail view (raw HL7, FHIR JSON, 837)
+X12 837 claim generation
 
-- **HL7 Playground**  
-  `/hl7/playground/` – paste an HL7 v2 message in the browser and see the FHIR + 837 output immediately.
+Cloud database logging (Neon Postgres)
 
----
+Web dashboard + message detail viewer
 
-## Architecture
+Interactive HL7 Playground (client-side tester)
 
-```mermaid
 flowchart LR
-    EHR["External System<br/>(EHR / LIS / PMS)"] -->|"HL7 v2 ADT over TCP (MLLP)"| Mirth["Mirth Connect<br/>TCP Listener Channel"]
+    EHR["External System<br/>(EHR / PMS / LIS)"] -->|"HL7 v2 ADT over TCP (MLLP)"| Mirth["Mirth Connect<br/>TCP Listener"]
 
     Mirth -->|"HTTP POST<br/>text/plain HL7"| DjangoAPI["Django Healthcare API<br/>(Vercel Serverless)"]
-    DjangoAPI -->|"Parse HL7 v2"| FHIR["FHIR Patient<br/>FHIR Encounter"]
-    FHIR -->|"Map clinical data"| X12["Generate X12 837<br/>Professional Claim"]
 
-    DjangoAPI -->|"Insert log row"| Neon["Neon Postgres<br/>HL7MessageLog"]
+    DjangoAPI -->|"Parse HL7 v2"| FHIR["FHIR Patient<br/>FHIR Encounter"]
+
+    FHIR -->|"Map fields to claim"| X12["X12 837 Claim<br/>(Professional)"]
+
+    DjangoAPI -->|"Insert log row"| Neon["Neon Postgres<br/>HL7MessageLog table"]
 
     Neon -->|"SELECT last 50"| Dashboard["Web Dashboard<br/>/mirth/messages/"]
-    DjangoAPI -->|"JSON (Patient, Encounter, 837)"| Mirth
+
+    DjangoAPI -->|"Return JSON (Patient, Encounter, 837)"| Mirth
+
+ChatGPT said:
+
+Perfect. We'll now take your demo and portfolio to an elite, interview-ready level, the kind of preparation that makes hiring managers say:
+
+“This candidate is already doing the job.”
+
+Here’s what I will deliver in the next phases:
+
+PHASE 1 – Upgrade Your GitHub (README, folders, assets, diagrams)
+PHASE 2 – Upgrade Your LinkedIn (full rewrite with optimized keywords)
+PHASE 3 – Create a 1-page PDF Portfolio for interviews
+PHASE 4 – Build Interview Q&A (technical + behavioral + scenario-based)
+PHASE 5 – Add one or two high-value demo enhancements (fast wins)
+
+Let’s begin PHASE 1.
+
+🔥 PHASE 1 — Your GitHub README (Final, polished, recruiter-attractive)
+
+Copy & paste this entire section into your repo’s README.md.
+
+🏥 HL7 → FHIR → X12 837 Healthcare Integration Demo
+Built by Sam Yan · Healthcare Interoperability Engineer
+
+🌐 Live Demo: https://django-sam-healthcare.vercel.app/
+
+📡 Mirth Logs: https://django-sam-healthcare.vercel.app/mirth/messages/
+
+🧪 Playground: https://django-sam-healthcare.vercel.app/hl7/playground/
+
+🚀 Overview
+
+This project demonstrates a complete healthcare integration pipeline, built end-to-end with real interoperability standards:
+
+HL7 v2 ADT ingestion (MLLP/TCP)
+
+Mirth Connect TCP Listener + HTTP Sender
+
+Django REST API (Serverless Vercel)
+
+FHIR resource generation (Patient + Encounter)
+
+X12 837 claim generation
+
+Cloud database logging (Neon Postgres)
+
+Web dashboard + message detail viewer
+
+Interactive HL7 Playground (client-side tester)
+
+This is a practical demo showing the same skills used in healthcare integration roles (Interface Engineer, Interoperability Engineer, API Integration Developer, etc.)
+
+🧩 Architecture
+GitHub-friendly Mermaid diagram (works on GitHub)
+flowchart LR
+    EHR["External System<br/>(EHR / PMS / LIS)"] -->|"HL7 v2 ADT over TCP (MLLP)"| Mirth["Mirth Connect<br/>TCP Listener"]
+
+    Mirth -->|"HTTP POST<br/>text/plain HL7"| DjangoAPI["Django Healthcare API<br/>(Vercel Serverless)"]
+
+    DjangoAPI -->|"Parse HL7 v2"| FHIR["FHIR Patient<br/>FHIR Encounter"]
+
+    FHIR -->|"Map fields to claim"| X12["X12 837 Claim<br/>(Professional)"]
+
+    DjangoAPI -->|"Insert log row"| Neon["Neon Postgres<br/>HL7MessageLog table"]
+
+    Neon -->|"SELECT last 50"| Dashboard["Web Dashboard<br/>/mirth/messages/"]
+
+    DjangoAPI -->|"Return JSON (Patient, Encounter, 837)"| Mirth
+
+💎 Features (What this demo proves I can do)
+✔ HL7 v2 ADT Parsing
+
+Extracts PID, PV1, demographics, encounter info, provider, etc.
+
+✔ FHIR resource generation
+
+Outputs valid FHIR JSON:
+
+FHIR Patient Resource
+
+FHIR Encounter Resource
+
+✔ X12 837 Claim Builder
+
+Creates a simplified 837P claim using fields extracted from ADT/PV1.
+
+✔ Mirth Connect Integration
+
+TCP Listener (HL7 v2.x)
+
+JavaScript/Template routing
+
+HTTP Sender to cloud endpoint
+
+ACK handling
+
+✔ Cloud Deployment
+
+Django API deployed on Vercel Serverless
+
+Neon Postgres for persistent storage
+
+Dynamically switches between SQLite (dev) and Postgres (prod)
+
+✔ Observability & Dashboard
+
+Each message logged into HL7MessageLog
+
+Dashboard showing time, type, patient ID, encounter, 837 length
+
+Detail page with:
+
+Raw HL7
+
+FHIR Patient JSON
+
+FHIR Encounter JSON
+
+Generated X12 837
+
+🛠 Technologies Used
+Category	Tools
+Interface Engine	Mirth Connect
+HL7	HL7 v2 ADT, MLLP, Segment parsing
+FHIR	Patient, Encounter structures
+EDI	X12 837 Professional
+Backend	Django 5, DRF, Python
+Deployment	Vercel Serverless
+Database	Neon Postgres + SQLite (local)
+Frontend	Django Templates, CSS, jQuery
+Logging	DB audit table, dashboard
+📘 Endpoints
+🔹 POST /api/transform/
+
+Browser playground → HL7 input → FHIR + 837 output
+
+🔹 POST /api/mirth/hl7/
+
+Mirth → Django endpoint (raw HL7)
+
+🔹 GET /mirth/messages/
+
+Dashboard of recent HL7 messages
+
+🔹 GET /mirth/messages/<id>/
+
+Detail viewer
+
+🧪 Try It Yourself
+Using Mirth?
+
+Send an ADT^A01 message to your TCP Listener → It will appear on the dashboard.
+
+No Mirth?
+
+Use the Playground:
+https://django-sam-healthcare.vercel.app/hl7/playground/

@@ -35,7 +35,12 @@
         <td>{{ log.patient_id }}</td>
         <td>{{ log.encounter_present }}</td>
         <td>{{ log.x12_length }}</td>
-        <td class="hl7-cell">{{ log.raw_hl7|truncatechars:120 }}</td>
+        <td>
+            <a href="{% url 'mirth-message-detail' log.pk %}">
+                {{ log.raw_hl7|truncatechars:100 }}
+            </a>
+        </td>
+        <!-- <td class="hl7-cell">{{ log.raw_hl7|truncatechars:120 }}</td> -->
       </tr>
       {% empty %}
       <tr><td colspan="6">No messages yet.</td></tr>

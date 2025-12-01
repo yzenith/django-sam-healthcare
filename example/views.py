@@ -12,13 +12,37 @@ from .hl7_utils import hl7_to_all
 
 from .models import HL7MessageLog
 
+def home(request):
+    total = HL7MessageLog.objects.count()
+    latest_logs = HL7MessageLog.objects.order_by("-created_at")[:5]
+    return render(request, "home.html", {
+        "total": total,
+        "latest_logs": latest_logs,
+    })
+
+def hl7_playground(request):
+    return render(request, "hl7_playground.html")
+
 def mirth_messages(request):
     logs = HL7MessageLog.objects.order_by("-created_at")[:20]
     return render(request, "mirth_messages.html", {"logs": logs})
 
 def mirth_message_detail(request, pk):
     log = get_object_or_404(HL7MessageLog, pk=pk)
-    return render(request, "mirth_message_detail.html", {"log": log})
+
+    # Re-run transform on the raw HL7 so we don't need to store JSON in DB
+    transform_result = hl7_to_all(log.raw_hl7)
+    patient = transform_result.get("patient")
+    encounter = transform_result.get("encounter")
+    x12_837 = transform_result.get("x12_837")
+
+    context = {
+        "log": log,
+        "patient": patient,
+        "encounter": encounter,
+        "x12_837": x12_837,
+    }
+    return render(request, "mirth_message_detail.html", context)
 
 
 # ⬇⬇⬇ add this function-based view

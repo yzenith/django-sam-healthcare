@@ -1,106 +1,55 @@
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fdjango&demo-title=Django%20%2B%20Vercel&demo-description=Use%20Django%204%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fdjango-template.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994241/random/django.png)
+# HL7 → FHIR → X12 837 Integration Demo
 
-# Django + Vercel
+A small end-to-end healthcare integration demo that shows how to:
 
-This example shows how to use Django 4 on Vercel with Serverless Functions using the [Python Runtime](https://vercel.com/docs/concepts/functions/serverless-functions/runtimes/python).
+- Receive **HL7 v2 ADT** messages via **Mirth Connect**
+- Forward them to a **Django REST API** deployed on **Vercel**
+- Transform HL7 into **FHIR Patient / Encounter**
+- Generate a simplified **X12 837** claim
+- Store message logs in **Neon Postgres**
+- Visualize the pipeline via a **web dashboard**
 
-## Demo
+This project is designed to demonstrate practical skills for healthcare integration / interoperability roles (HL7, FHIR, EDI, Mirth).
 
-https://django-template.vercel.app/
+---
 
-## How it Works
+## Features
 
-Our Django application, `example` is configured as an installed application in `api/settings.py`:
+- **HL7 v2 ADT → FHIR**  
+  Basic parsing of MSH / PID / PV1 segments into FHIR Patient and Encounter resources.
 
-```python
-# api/settings.py
-INSTALLED_APPS = [
-    # ...
-    'example',
-]
-```
+- **HL7 v2 → X12 837**  
+  Generates a simplified 837P claim based on the HL7 encounter data.
 
-We allow "\*.vercel.app" subdomains in `ALLOWED_HOSTS`, in addition to 127.0.0.1:
+- **Mirth Connect Integration**  
+  - Source: TCP Listener (HL7 v2.x)  
+  - Destination: HTTP Sender posting raw HL7 to the Django API
 
-```python
-# api/settings.py
-ALLOWED_HOSTS = ['127.0.0.1', '.vercel.app']
-```
+- **Microservice API**  
+  - `/api/transform/` – HL7 → FHIR + X12 (HL7 Playground)  
+  - `/api/mirth/hl7/` – HL7 endpoint used by Mirth, with logging
 
-The `wsgi` module must use a public variable named `app` to expose the WSGI application:
+- **Message Logging & Dashboard**  
+  - Messages persisted into Neon Postgres (`HL7MessageLog`)  
+  - `/mirth/messages/` – list of recent messages  
+  - `/mirth/messages/<id>/` – detail view (raw HL7, FHIR JSON, 837)
 
-```python
-# api/wsgi.py
-app = get_wsgi_application()
-```
+- **HL7 Playground**  
+  `/hl7/playground/` – paste an HL7 v2 message in the browser and see the FHIR + 837 output immediately.
 
-The corresponding `WSGI_APPLICATION` setting is configured to use the `app` variable from the `api.wsgi` module:
+---
 
-```python
-# api/settings.py
-WSGI_APPLICATION = 'api.wsgi.app'
-```
+## Architecture
 
-There is a single view which renders the current time in `example/views.py`:
+```mermaid
+flowchart LR
+    EHR[External System\n(EHR / LIS / PMS)] -->|HL7 v2 ADT over TCP (MLLP)| Mirth[Mirth Connect\nTCP Listener]
 
-```python
-# example/views.py
-from datetime import datetime
+    Mirth -->|HTTP POST\ntext/plain HL7| DjangoAPI[Django Healthcare API\n(Vercel Serverless)]
+    DjangoAPI -->|Parse HL7 v2| FHIR[In-memory FHIR\nPatient + Encounter]
+    FHIR -->|Map clinical data| X12[Generate X12 837\nProfessional Claim]
 
-from django.http import HttpResponse
+    DjangoAPI -->|Insert log row| Neon[(Neon Postgres\nHL7MessageLog table)]
 
-
-def index(request):
-    now = datetime.now()
-    html = f'''
-    <html>
-        <body>
-            <h1>Hello from Vercel!</h1>
-            <p>The current time is { now }.</p>
-        </body>
-    </html>
-    '''
-    return HttpResponse(html)
-```
-
-This view is exposed a URL through `example/urls.py`:
-
-```python
-# example/urls.py
-from django.urls import path
-
-from example.views import index
-
-
-urlpatterns = [
-    path('', index),
-]
-```
-
-Finally, it's made accessible to the Django server inside `api/urls.py`:
-
-```python
-# api/urls.py
-from django.urls import path, include
-
-urlpatterns = [
-    ...
-    path('', include('example.urls')),
-]
-```
-
-This example uses the Web Server Gateway Interface (WSGI) with Django to enable handling requests on Vercel with Serverless Functions.
-
-## Running Locally
-
-```bash
-python manage.py runserver
-```
-
-Your Django application is now available at `http://localhost:8000`.
-
-## One-Click Deploy
-
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples):
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fdjango&demo-title=Django%20%2B%20Vercel&demo-description=Use%20Django%204%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fdjango-template.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994241/random/django.png)
+    Neon -->|SELECT last 50| Dashboard[Web Dashboard\n/mirth/messages/]
+    DjangoAPI -->|JSON (Patient, Encounter, 837)| Mirth

@@ -20,6 +20,7 @@ def hl7_to_all(hl7_text):
 
     if msg_type.startswith("ORU"):
         return hl7_oru_to_fhir(hl7_text)
+    
 
     return {"error": f"Unsupported HL7 message type: {msg_type}"}
 
@@ -326,16 +327,3 @@ def fhir_to_837_claim(patient, encounter):
     segments.append("IEA*1*000000001~")
 
     return "\n".join(segments)
-
-
-def hl7_to_all(hl7_text: str):
-    segments = parse_hl7(hl7_text)
-    patient = hl7_to_fhir_patient(segments)
-    encounter = hl7_to_fhir_encounter(segments, patient_id=(patient or {}).get("id"))
-    x12 = fhir_to_837_claim(patient, encounter) if patient and encounter else ""
-
-    return {
-        "patient": patient,
-        "encounter": encounter,
-        "x12_837": x12
-    }

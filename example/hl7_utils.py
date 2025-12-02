@@ -1,7 +1,7 @@
 # app/hl7_utils.py
 from datetime import datetime
 
-def hl7_to_all(hl7_text):
+def hl7_to_all(hl7_text: str):
     lines = hl7_text.strip().split("\n")
     msg_type = None
 
@@ -9,112 +9,47 @@ def hl7_to_all(hl7_text):
     for segment in lines:
         if segment.startswith("MSH"):
             fields = segment.split("|")
-            msg_type = fields[8]  # e.g., ADT^A01 or ORU^R01
+            # MSH-9 is e.g. "ADT^A01" or "ORU^R01"
+            msg_type = fields[8] if len(fields) > 8 else None
+            break
 
     if not msg_type:
-        return {"error": "Unable to determine HL7 message type."}
+        return {
+            "error": "Unable to determine HL7 message type (MSH-9 missing).",
+            "raw_hl7": hl7_text,
+        }
 
+    # --- ADT messages: build Patient + Encounter + 837 ---
     if msg_type.startswith("ADT"):
-        # Your existing ADT logic here
-        return hl7_to_all(hl7_text)
+        segments = parse_hl7(hl7_text)
 
+        patient = hl7_to_fhir_patient(segments) or {}
+        patient_id = (patient.get("identifier") or [{}])[0].get("value") or patient.get("id")
+
+        encounter = hl7_to_fhir_encounter(segments, patient_id=patient_id)
+        x12_837 = None
+        if patient and encounter:
+            x12_837 = fhir_to_837_claim(patient, encounter)
+
+        return {
+            "message_type": msg_type,
+            "raw_hl7": hl7_text,
+            "patient": patient,
+            "encounter": encounter,
+            "x12_837": x12_837,
+        }
+
+    # --- ORU messages: reuse your existing ORU converter ---
     if msg_type.startswith("ORU"):
-        return hl7_oru_to_fhir(hl7_text)
-    
+        result = hl7_oru_to_fhir(hl7_text)
+        # result already includes message_type="ORU^R01" etc.
+        return result
 
-    return {"error": f"Unsupported HL7 message type: {msg_type}"}
-
-
-def hl7_oru_to_fhir(hl7_text):
-    """
-    Convert HL7 ORU^R01 lab messages into:
-    - FHIR DiagnosticReport
-    - FHIR Observations[]
-    """
-
-    segments = hl7_text.strip().split("\n")
-    pid = {}
-    obr = {}
-    obx_list = []
-
-    for seg in segments:
-        fields = seg.split("|")
-
-        # PID ---
-        if seg.startswith("PID"):
-            pid = {
-                "id": fields[3],
-                "name": fields[5].replace("^", " "),
-                "dob": fields[7],
-                "sex": fields[8],
-            }
-
-        # OBR ---
-        if seg.startswith("OBR"):
-            obr = {
-                "id": fields[3],
-                "code": fields[4].split("^")[0],
-                "description": fields[4].split("^")[1] if "^" in fields[4] else "",
-                "date": fields[7],
-            }
-
-        # OBX ---
-        if seg.startswith("OBX"):
-            obx = {
-                "id": fields[1],
-                "type": fields[2],
-                "code": fields[3].split("^")[0],
-                "description": fields[3].split("^")[1] if "^" in fields[3] else "",
-                "value": fields[5],
-                "unit": fields[6],
-                "ref_range": fields[7],
-                "abnormal": fields[8] if len(fields) > 8 else None,
-            }
-            obx_list.append(obx)
-
-    # --- Build FHIR Observations ---
-    fhir_observations = []
-    for obx in obx_list:
-        fhir_observations.append({
-            "resourceType": "Observation",
-            "status": "final",
-            "code": {
-                "coding": [{
-                    "system": "http://loinc.org",
-                    "code": obx["code"],
-                    "display": obx["description"]
-                }]
-            },
-            "valueString": obx["value"],
-            "unit": obx["unit"],
-            "referenceRange": obx["ref_range"],
-        })
-
-    # --- Build DiagnosticReport ---
-    diagnostic_report = {
-        "resourceType": "DiagnosticReport",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://loinc.org",
-                "code": obr.get("code"),
-                "display": obr.get("description")
-            }]
-        },
-        "subject": {"reference": f"Patient/{pid.get('id')}"},
-        "effectiveDateTime": obr.get("date"),
-        "result": [
-            {"reference": f"Observation/{i+1}"} 
-            for i in range(len(fhir_observations))
-        ],
-    }
-
+    # --- Unsupported / future types ---
     return {
-        "report": diagnostic_report,
-        "observations": fhir_observations,
-        "patient_id": pid.get("id"),
+        "error": f"Unsupported HL7 message type: {msg_type}",
+        "message_type": msg_type,
         "raw_hl7": hl7_text,
-        "message_type": "ORU^R01",
     }
 
 
@@ -327,3 +262,166 @@ def fhir_to_837_claim(patient, encounter):
     segments.append("IEA*1*000000001~")
 
     return "\n".join(segments)
+
+
+def hl7_oru_to_fhir(hl7_text: str) -> dict:
+    """
+    Convert a simple HL7 ORU^R01 lab result message into:
+      - FHIR DiagnosticReport
+      - list[FHIR Observation]
+    """
+
+    # ✅ handle \r, \n, or both
+    segments_raw = [
+        line.strip()
+        for line in hl7_text.strip().splitlines()
+        if line.strip()
+    ]
+
+    # --- get message type from MSH-9 if present ---
+    msg_type = "ORU^R01"
+    for seg in segments_raw:
+        if seg.startswith("MSH"):
+            fields = seg.split("|")
+            if len(fields) > 8 and fields[8]:
+                msg_type = fields[8]
+            break
+
+    pid = {}
+    obr = {}
+    obx_list = []
+
+    for seg in segments_raw:
+        fields = seg.split("|")
+
+        # PID
+        if seg.startswith("PID"):
+            patient_id = fields[3] if len(fields) > 3 else ""
+            name_field = fields[5] if len(fields) > 5 else ""
+            dob = fields[7] if len(fields) > 7 else ""
+            sex = fields[8] if len(fields) > 8 else ""
+
+            family = ""
+            given = ""
+            if name_field:
+                comps = name_field.split("^")
+                family = comps[0] if len(comps) > 0 else ""
+                given = comps[1] if len(comps) > 1 else ""
+
+            pid = {
+                "id": patient_id,
+                "name": {
+                    "family": family,
+                    "given": given,
+                },
+                "dob": dob,
+                "sex": sex,
+            }
+
+        # OBR
+        if seg.startswith("OBR"):
+            code_field = fields[4] if len(fields) > 4 else ""
+            code = ""
+            desc = ""
+            if code_field:
+                parts = code_field.split("^")
+                code = parts[0] if len(parts) > 0 else ""
+                desc = parts[1] if len(parts) > 1 else ""
+
+            date = fields[7] if len(fields) > 7 else ""
+
+            obr = {
+                "id": fields[3] if len(fields) > 3 else "",
+                "code": code,
+                "description": desc,
+                "date": date,
+            }
+
+        # OBX
+        if seg.startswith("OBX"):
+            code_field = fields[3] if len(fields) > 3 else ""
+            code = ""
+            desc = ""
+            if code_field:
+                parts = code_field.split("^")
+                code = parts[0] if len(parts) > 0 else ""
+                desc = parts[1] if len(parts) > 1 else ""
+
+            obx = {
+                "id": fields[1] if len(fields) > 1 else "",
+                "type": fields[2] if len(fields) > 2 else "",
+                "code": code,
+                "description": desc,
+                "value": fields[5] if len(fields) > 5 else "",
+                "unit": fields[6] if len(fields) > 6 else "",
+                "ref_range": fields[7] if len(fields) > 7 else "",
+                "abnormal": fields[8] if len(fields) > 8 else None,
+            }
+            obx_list.append(obx)
+
+    patient_id = pid.get("id")
+
+    # --- Build FHIR Observations ---
+    fhir_observations = []
+    for idx, obx in enumerate(obx_list, start=1):
+        obs = {
+            "resourceType": "Observation",
+            "id": f"obx-{idx}",
+            "status": "final",
+            "code": {
+                "coding": [
+                    {
+                        "system": "http://loinc.org",
+                        "code": obx["code"],
+                        "display": obx["description"],
+                    }
+                ]
+            },
+            "valueString": obx["value"],
+        }
+
+        if obx.get("unit") or obx.get("ref_range"):
+            obs["note"] = [{
+                "text": f"Unit: {obx.get('unit', '')}  RefRange: {obx.get('ref_range', '')}"
+            }]
+
+        if patient_id:
+            obs["subject"] = {"reference": f"Patient/{patient_id}"}
+
+        if obr.get("date"):
+            obs["effectiveDateTime"] = obr["date"]
+
+        fhir_observations.append(obs)
+
+    # --- Build DiagnosticReport ---
+    diagnostic_report = {
+        "resourceType": "DiagnosticReport",
+        "status": "final",
+        "code": {
+            "coding": [
+                {
+                    "system": "http://loinc.org",
+                    "code": obr.get("code"),
+                    "display": obr.get("description"),
+                }
+            ]
+        },
+        "result": [
+            {"reference": f"Observation/obx-{i+1}"}
+            for i in range(len(fhir_observations))
+        ],
+    }
+
+    if patient_id:
+        diagnostic_report["subject"] = {"reference": f"Patient/{patient_id}"}
+
+    if obr.get("date"):
+        diagnostic_report["effectiveDateTime"] = obr["date"]
+
+    return {
+        "message_type": msg_type,
+        "raw_hl7": hl7_text,
+        "patient_id": patient_id,
+        "report": diagnostic_report,
+        "observations": fhir_observations,
+    }

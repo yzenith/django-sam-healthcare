@@ -87,12 +87,6 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
       dataType: "json",
       data: JSON.stringify({ hl7_message: hl7 }),
 
-      // success: function (data) {
-      //   $("#patient-json").text(JSON.stringify(data.patient, null, 2));
-      //   $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
-      //   $("#x12-837").text(data.x12_837 || "(No 837 generated)");
-      // },
-
       success: function (data) {
 
         if (data.patient) {

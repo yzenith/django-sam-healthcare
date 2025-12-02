@@ -78,44 +78,51 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
 
 <script>
   $("#btn-transform").on("click", function () {
-    const hl7 = $("#hl7-input").val();
+      const hl7 = $("#hl7-input").val();
 
-    $.ajax({
-      url: "/api/transform/",
-      method: "POST",
-      contentType: "application/json",
-      dataType: "json",
-      data: JSON.stringify({ hl7_message: hl7 }),
+      // Clear all previous results 🔥
+      $("#patient-json").text("(Results will appear here)");
+      $("#encounter-json").text("(Results will appear here)");
+      $("#x12-837").text("(Results will appear here)");
+      $("#report-json").text("(ORU results will appear here)");
+      $("#obs-json").text("(ORU results will appear here)");
 
-      success: function (data) {
+      $.ajax({
+        url: "/api/transform/",
+        method: "POST",
+        contentType: "application/json",
+        dataType: "json",
+        data: JSON.stringify({ hl7_message: hl7 }),
 
-        if (data.patient) {
-          $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+        success: function (data) {
+
+          if (data.patient) {
+            $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+          }
+
+          if (data.encounter) {
+            $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
+          }
+
+          if (data.x12_837) {
+            $("#x12-837").text(data.x12_837);
+          }
+
+          if (data.report) {
+            $("#report-json").text(JSON.stringify(data.report, null, 2));
+          }
+
+          if (data.observations) {
+            $("#obs-json").text(JSON.stringify(data.observations, null, 2));
+          }
+      },
+
+        error: function (xhr) {
+          alert("Error: " + xhr.responseText);
         }
-
-        if (data.encounter) {
-          $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
-        }
-
-        if (data.x12_837) {
-          $("#x12-837").text(data.x12_837);
-        }
-
-        if (data.report) {
-          $("#report-json").text(JSON.stringify(data.report, null, 2));
-        }
-
-        if (data.observations) {
-          $("#obs-json").text(JSON.stringify(data.observations, null, 2));
-        }
-     },
-
-
-      error: function (xhr) {
-        alert("Error: " + xhr.responseText);
-      }
-    });
+      });
   });
+
 </script>
 
 </body>

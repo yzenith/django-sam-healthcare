@@ -1,5 +1,7 @@
 import json
-import warnings
+import os
+import jwt
+from datetime import datetime, timedelta
 from django.http import HttpResponseForbidden
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -11,6 +13,48 @@ from .serializers import HL7TransformRequestSerializer
 from .hl7_utils import hl7_oru_to_fhir, hl7_to_all
 
 from .models import HL7MessageLog
+
+# JWT settings – use env vars in real deployment
+MIRTH_JWT_SECRET = os.environ.get("MIRTH_JWT_SECRET", "MIRTH_DEMO_SECRET_KEY")
+MIRTH_JWT_ALG = "HS256"
+MIRTH_JWT_AUD = "mirth-connector"
+MIRTH_JWT_ISS = "django-sam-healthcare"
+
+def validate_mirth_jwt(request):
+    """
+    Extract and validate a Bearer JWT from the Authorization header.
+
+    Expected:
+      Authorization: Bearer <token>
+    """
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None, "Missing or invalid Authorization header"
+
+    token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return None, "Empty JWT token"
+
+    try:
+        claims = jwt.decode(
+            token,
+            MIRTH_JWT_SECRET,
+            algorithms=[MIRTH_JWT_ALG],
+            audience=MIRTH_JWT_AUD,
+            options={"require": ["exp", "iss", "sub"]},
+        )
+    except jwt.ExpiredSignatureError:
+        return None, "JWT has expired"
+    except jwt.InvalidTokenError as e:
+        return None, f"Invalid JWT: {e}"
+
+    # Optional: enforce issuer
+    if claims.get("iss") != MIRTH_JWT_ISS:
+        return None, "Invalid JWT issuer"
+
+    return claims, None
+
 
 def home(request):
     total = HL7MessageLog.objects.count()
@@ -26,6 +70,7 @@ def hl7_playground(request):
 def mirth_messages(request):
     logs = HL7MessageLog.objects.order_by("-created_at")[:20]
     return render(request, "mirth_messages.html", {"logs": logs})
+    
 
 def mirth_message_detail(request, pk):
     log = get_object_or_404(HL7MessageLog, pk=pk)

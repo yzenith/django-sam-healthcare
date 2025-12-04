@@ -1,86 +1,106 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>HL7 v2 → FHIR → X12 837 Playground</title>
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+{% extends "base.html" %}
 
-  <style>
-    body { font-family: Arial, sans-serif; background: #f5f9ff; margin: 0; }
-    .nav { background: #0f4c81; color: #fff; padding: 12px 24px; }
-    .nav a { color: #fff; text-decoration: none; margin-right: 16px; }
-    .container { max-width: 1000px; margin: 24px auto; background: #fff;
-                 padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+{% block title %}HL7 v2 → FHIR → X12 837 Playground{% endblock %}
 
-    textarea { width: 100%; height: 180px; font-family: monospace; border: 1px solid #ccd; padding: 8px; }
-    pre { background: #f5f5f5; padding: 14px; border-radius: 5px; overflow-x: auto;
-          white-space: pre-wrap; font-size: 14px; }
+{% block content %}
+  <div class="row mb-4">
+    <div class="col-lg-10">
+      <h1 class="mb-3">HL7 v2 → FHIR → X12 837 Playground</h1>
+      <p class="text-muted">
+        Paste an HL7 v2 ADT/ORU message below. The API will convert it into FHIR
+        <strong>Patient</strong> / <strong>Encounter</strong> / <strong>DiagnosticReport</strong>
+        / <strong>Observations</strong>, and generate a simplified
+        <strong>X12 837</strong> claim.
+      </p>
+    </div>
+  </div>
 
-    h2 { margin-top: 0; }
-    button {
-      background: #0f4c81; color: #fff; padding: 10px 18px;
-      border: none; border-radius: 6px; cursor: pointer; font-size: 15px;
-    }
-    button:hover { background: #08385f; }
-    .section { margin-bottom: 32px; }
-  </style>
-</head>
-
-<body>
-
-<div class="nav">
-  <strong>HL7 Playground (ADT + ORU support)</strong>
-  &nbsp;&nbsp;
-  <a href="/">Home</a>
-  <a href="/mirth/messages/">Mirth Messages</a>
-</div>
-
-<div class="container">
-  
-  <h2>HL7 v2 → FHIR → X12 837 Playground</h2>
-  <p>Paste an HL7 v2 ADT message below. The API will convert it into FHIR Patient / Encounter and generate a simplified X12 837 claim.</p>
-
-  <div class="section">
-    <h3>Step 1: Paste HL7 v2 Message</h3>
-    <textarea id="hl7-input">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
+  <div class="row g-4">
+    <!-- Input card -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Step 1: Paste HL7 v2 Message</h5>
+          <p class="card-text small text-muted mb-2">
+            You can paste a single HL7 ADT/ORU message here. In the future this
+            page can be extended to support HL7 batches (multiple messages).
+          </p>
+          <textarea id="hl7-input"
+                    class="form-control font-monospace"
+                    rows="10">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
 PID|1||123456^^^HOSP^MR||DOE^JOHN||19900520|M|||789 PINE ST^^ALLEN^TX^75013
 PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
-    <br><br>
-    <button id="btn-transform">Transform HL7</button>
-  </div>
+          <button id="btn-transform" class="btn btn-primary mt-3">
+            Transform HL7
+          </button>
+        </div>
+      </div>
+    </div>
 
-  <div class="section">
-    <h3>FHIR Patient</h3>
-    <pre id="patient-json">(Results will appear here)</pre>
-  </div>
+    <!-- FHIR Patient -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">FHIR Patient</h5>
+          <pre id="patient-json"
+               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
+        </div>
+      </div>
+    </div>
 
-  <div class="section">
-    <h3>FHIR Encounter</h3>
-    <pre id="encounter-json">(Results will appear here)</pre>
-  </div>
+    <!-- FHIR Encounter -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">FHIR Encounter</h5>
+          <pre id="encounter-json"
+               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
+        </div>
+      </div>
+    </div>
 
-  <div class="section">
-    <h3>FHIR DiagnosticReport (ORU)</h3>
-    <pre id="report-json">(ORU results will appear here)</pre>
-  </div>
-  
-  <div class="section">
-    <h3>FHIR Observations (ORU)</h3>
-    <pre id="obs-json">(ORU results will appear here)</pre>
-  </div>
-  
-  <div class="section">
-    <h3>Generated X12 837 Claim</h3>
-    <pre id="x12-837">(Results will appear here)</pre>
-  </div>
+    <!-- FHIR DiagnosticReport (ORU) -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">FHIR DiagnosticReport (ORU)</h5>
+          <pre id="report-json"
+               class="bg-light border rounded p-3 small mb-0">(ORU results will appear here)</pre>
+        </div>
+      </div>
+    </div>
 
-</div>
+    <!-- FHIR Observations (ORU) -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">FHIR Observations (ORU)</h5>
+          <pre id="obs-json"
+               class="bg-light border rounded p-3 small mb-0">(ORU results will appear here)</pre>
+        </div>
+      </div>
+    </div>
 
+    <!-- X12 837 -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Generated X12 837 Claim</h5>
+          <pre id="x12-837"
+               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-  $("#btn-transform").on("click", function () {
+  $(function () {
+    $("#btn-transform").on("click", function () {
       const hl7 = $("#hl7-input").val();
 
-      // Clear all previous results 🔥
+      // Clear all previous results
       $("#patient-json").text("(Results will appear here)");
       $("#encounter-json").text("(Results will appear here)");
       $("#x12-837").text("(Results will appear here)");
@@ -88,42 +108,35 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
       $("#obs-json").text("(ORU results will appear here)");
 
       $.ajax({
-        url: "/api/transform/",
+        url: "{% url 'hl7-transform' %}",
         method: "POST",
         contentType: "application/json",
         dataType: "json",
         data: JSON.stringify({ hl7_message: hl7 }),
 
         success: function (data) {
-
           if (data.patient) {
             $("#patient-json").text(JSON.stringify(data.patient, null, 2));
           }
-
           if (data.encounter) {
             $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
           }
-
           if (data.x12_837) {
             $("#x12-837").text(data.x12_837);
           }
-
           if (data.report) {
             $("#report-json").text(JSON.stringify(data.report, null, 2));
           }
-
           if (data.observations) {
             $("#obs-json").text(JSON.stringify(data.observations, null, 2));
           }
-      },
+        },
 
         error: function (xhr) {
-          alert("Error: " + xhr.responseText);
+          alert("Error: " + (xhr.responseText || xhr.statusText));
         }
       });
+    });
   });
-
 </script>
-
-</body>
-</html>
+{% endblock %}

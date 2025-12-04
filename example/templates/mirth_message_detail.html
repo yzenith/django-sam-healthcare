@@ -1,94 +1,172 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Message #{{ log.id }} – HL7 Detail</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f5f9ff; margin: 0; }
-    .nav { background: #0f4c81; color: #fff; padding: 12px 24px; }
-    .nav a { color: #fff; text-decoration: none; margin-right: 16px; }
-    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
-    .card { background:#fff; border-radius:8px; padding:16px 20px;
-            box-shadow:0 2px 8px rgba(0,0,0,.08); margin-bottom:20px; }
-    pre { background:#f5f5f5; padding:12px; border-radius:6px; overflow-x:auto;
-          white-space:pre-wrap; font-size:13px; }
-    h2, h3 { margin-top:0; }
-    .meta-table { width:100%; border-collapse:collapse; font-size:14px; }
-    .meta-table td { padding:4px 8px; }
-    .meta-table td.label { font-weight:bold; width:140px; color:#555; }
-  </style>
-</head>
-<body>
-<div class="nav">
-  <a href="/">Home</a>
-  <a href="/mirth/messages/">Mirth Messages</a>
-  <span> / Message #{{ log.id }}</span>
+{% extends "base.html" %}
+
+{% block title %}Message #{{ log.id }} – HL7 Detail{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <nav aria-label="breadcrumb" class="mb-2">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'mirth-messages' %}">Mirth Messages</a></li>
+        <li class="breadcrumb-item active" aria-current="page">
+          Message #{{ log.id }}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-1">HL7 Message #{{ log.id }}</h1>
+    <p class="text-muted mb-0">
+      Details for an HL7 message received from <strong>Mirth Connect</strong>,
+      including the raw HL7 payload, parsed FHIR resources, and generated X12 837.
+    </p>
+  </div>
 </div>
 
-<div class="container">
+<div class="row g-3">
+  <!-- Metadata card -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Message Metadata</h5>
+        <dl class="row mb-0 small">
+          <dt class="col-sm-3">Received at</dt>
+          <dd class="col-sm-9">{{ log.created_at|date:"Y-m-d H:i:s" }}</dd>
 
-  <div class="card">
-    <h2>HL7 Message #{{ log.id }}</h2>
-    <table class="meta-table">
-      <tr><td class="label">Received at</td><td>{{ log.created_at }}</td></tr>
-      <tr><td class="label">Source system</td><td>{{ log.source_system }}</td></tr>
-      <tr><td class="label">Message type</td><td>{{ log.message_type }}</td></tr>
-      <tr><td class="label">Patient ID</td><td>{{ log.patient_id }}</td></tr>
-      <tr><td class="label">Encounter?</td><td>{{ log.encounter_present }}</td></tr>
-      <tr><td class="label">837 length</td><td>{{ log.x12_length }}</td></tr>
-    </table>
+          <dt class="col-sm-3">Source system</dt>
+          <dd class="col-sm-9">{{ log.source_system|default:"(unknown)" }}</dd>
+
+          <dt class="col-sm-3">Message type</dt>
+          <dd class="col-sm-9">{{ log.message_type }}</dd>
+
+          <dt class="col-sm-3">Patient ID</dt>
+          <dd class="col-sm-9">{{ log.patient_id|default:"—" }}</dd>
+
+          <dt class="col-sm-3">Encounter?</dt>
+          <dd class="col-sm-9">
+            {% if log.encounter_present %}
+              <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary-emphasis">No</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-3">837 length</dt>
+          <dd class="col-sm-9">
+            {% if log.x12_length %}
+              {{ log.x12_length }} chars
+            {% else %}
+              —
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
   </div>
 
-
-  <div class="card">
-    <h3>Raw HL7 v2 Message</h3>
-    <pre>{{ log.raw_hl7 }}</pre>
+  <!-- Raw HL7 -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Raw HL7 v2 Message</h5>
+        <pre class="bg-light border rounded p-3 small mb-0">{{ log.raw_hl7 }}</pre>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>FHIR Patient (JSON)</h3>
-    <pre>{{ patient|json_script:"patient-json" }}</pre>
-    <pre id="patient-json-display"></pre>
+  <!-- FHIR Patient -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Patient (JSON)</h5>
+        {% if patient %}
+          {{ patient|json_script:"patient-json" }}
+          <pre id="patient-json-display"
+               class="bg-light border rounded p-3 small mb-0"></pre>
+        {% else %}
+          <pre class="bg-light border rounded p-3 small mb-0">
+(No Patient resource generated for this message.)
+          </pre>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>FHIR Encounter (JSON)</h3>
-    <pre>{{ encounter|json_script:"encounter-json" }}</pre>
-    <pre id="encounter-json-display"></pre>
+  <!-- FHIR Encounter -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Encounter (JSON)</h5>
+        {% if encounter %}
+          {{ encounter|json_script:"encounter-json" }}
+          <pre id="encounter-json-display"
+               class="bg-light border rounded p-3 small mb-0"></pre>
+        {% else %}
+          <pre class="bg-light border rounded p-3 small mb-0">
+(No Encounter resource generated for this message.)
+          </pre>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>Generated X12 837</h3>
-    <pre>{{ x12_837 }}</pre>
+  <!-- X12 837 -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Generated X12 837</h5>
+        <pre class="bg-light border rounded p-3 small mb-0">
+{{ x12_837|default:"(No X12 837 generated for this message.)" }}
+        </pre>
+      </div>
+    </div>
   </div>
 
   {% if log.message_type == "ORU^R01" %}
-    <div class="card">
-    <h3>FHIR DiagnosticReport</h3>
-    <pre>{{ report_json }}</pre>
+    <!-- DiagnosticReport -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">FHIR DiagnosticReport</h5>
+          <pre class="bg-light border rounded p-3 small mb-0">
+{{ report_json|default:"(No DiagnosticReport generated for this message.)" }}
+          </pre>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-    <h3>FHIR Observations (Lab Results)</h3>
-    <pre>{{ observations_json }}</pre>
+    <!-- Observations -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">FHIR Observations (Lab Results)</h5>
+          <pre class="bg-light border rounded p-3 small mb-0">
+{{ observations_json|default:"(No Observations generated for this message.)" }}
+          </pre>
+        </div>
+      </div>
     </div>
   {% endif %}
-
-
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
   // Pretty-print the JSON from the json_script tags
   function showJson(id, displayId) {
     const script = document.getElementById(id);
     if (!script) return;
-    const data = JSON.parse(script.textContent || script.innerText || "{}");
-    document.getElementById(displayId).textContent = JSON.stringify(data, null, 2);
+    try {
+      const data = JSON.parse(script.textContent || script.innerText || "{}");
+      const el = document.getElementById(displayId);
+      if (el) {
+        el.textContent = JSON.stringify(data, null, 2);
+      }
+    } catch (e) {
+      console.error("Failed to parse JSON for", id, e);
+    }
   }
 
   showJson("patient-json", "patient-json-display");
   showJson("encounter-json", "encounter-json-display");
 </script>
-
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Traceability{% endblock %}</title>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121b2f;
+      --panel-2: #0f1729;
+      --text: #e8eefc;
+      --muted: #a7b3d1;
+      --border: rgba(255,255,255,.10);
+      --link: #7bb3ff;
+      --ok: #2ecc71;
+      --warn: #f1c40f;
+      --err: #ff5b5b;
+      --chip: rgba(255,255,255,.08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 700px at 20% 10%, rgba(123,179,255,.18), transparent 45%),
+                  radial-gradient(1000px 600px at 80% 0%, rgba(46,204,113,.10), transparent 45%),
+                  var(--bg);
+      color: var(--text);
+    }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 18px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .brand { display: flex; flex-direction: column; gap: 4px; }
+    .brand h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+    .brand small { color: var(--muted); }
+
+    .nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 12px; border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn:hover { background: rgba(255,255,255,.07); }
+    .btn.active {
+      background: rgba(123,179,255,.18);
+      border-color: rgba(123,179,255,.35);
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    }
+
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 900px) { .grid.two { grid-template-columns: 1fr; } }
+
+    .table-wrap { overflow-x: auto; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    th, td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { text-align: left; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+    td { font-size: 14px; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 999px;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 13px;
+    }
+    .mono { font-family: var(--mono); }
+    .muted { color: var(--muted); }
+
+    .kpi { display: flex; gap: 10px; flex-wrap: wrap; }
+    .kpi .card {
+      flex: 1 1 180px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.03);
+    }
+    .kpi .card .label { color: var(--muted); font-size: 12px; }
+    .kpi .card .value { font-size: 18px; margin-top: 4px; }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 9px; border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: var(--err); }
+
+    .codebox {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+      background: rgba(0,0,0,.25);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .steps { display: grid; gap: 10px; }
+    .step {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,.03);
+    }
+    .step-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .step-title { font-weight: 600; }
+    .step-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .pill {
+      padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
+      font-size: 12px; background: rgba(255,255,255,.04);
+    }
+    .pill.ok { border-color: rgba(46,204,113,.35); }
+    .pill.warn { border-color: rgba(241,196,15,.35); }
+    .pill.err { border-color: rgba(255,91,91,.35); }
+
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 12px; color: var(--muted); }
+    input, select {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      outline: none;
+      font-size: 14px;
+    }
+    input::placeholder { color: rgba(167,179,209,.7); }
+
+    .row { display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .h2 { font-size: 16px; margin: 0; }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Healthcare Integration Demo</h1>
+        <small>HL7 / X12 / FHIR traceability and transformation</small>
+      </div>
+
+      <div class="nav">
+        <a class="btn {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Home</a>
+
+        <a class="btn {% if '/hl7/playground' in request.path %}active{% endif %}"
+           href="{% url 'hl7-playground' %}">
+          HL7 Playground
+        </a>
+
+        <a class="btn {% if '/mirth/messages' in request.path %}active{% endif %}"
+           href="{% url 'mirth-messages' %}">
+          Mirth Messages
+        </a>
+
+        <a class="btn {% if '/trace/logs' in request.path %}active{% endif %}"
+           href="{% url 'trace-logs-page' %}">
+          Trace Logs
+        </a>
+
+        {% block top_actions %}{% endblock %}
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+
+    {% include "foot.html" %}
+  </div>
+</body>
+</html>

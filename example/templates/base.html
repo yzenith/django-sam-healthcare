@@ -19,7 +19,6 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
   <div class="container">
-    <!-- Brand goes to your home view -->
     <a class="navbar-brand" href="{% url 'home' %}">
       HL7 → FHIR → X12 Demo
     </a>
@@ -32,18 +31,31 @@
 
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
+
         <li class="nav-item">
-          <!-- Home link -->
-          <a class="nav-link" href="{% url 'home' %}">Home</a>
+          <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+             href="{% url 'home' %}">Home</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'hl7-playground' %}active{% endif %}"
+             href="{% url 'hl7-playground' %}">HL7 Playground</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'mirth-messages' %}active{% endif %}"
+             href="{% url 'mirth-messages' %}">Mirth Live Feed</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'trace-logs-page' %}active{% endif %}"
+             href="{% url 'trace-logs-page' %}">Trace Logs</a>
         </li>
         <li class="nav-item">
-          <!-- Match the name in urls.py: 'hl7-playground' -->
-          <a class="nav-link" href="{% url 'hl7-playground' %}">HL7 Playground</a>
+          <a class="nav-link {% if request.resolver_match.url_name == 'trace-ingest-page' %}active{% endif %}"
+            href="{% url 'trace-ingest-page' %}">Trace Ingest</a>
         </li>
-        <li class="nav-item">
-          <!-- Use the messages list as "Mirth Live Feed" -->
-          <a class="nav-link" href="{% url 'mirth-messages' %}">Mirth Live Feed</a>
-        </li>
+
       </ul>
     </div>
   </div>

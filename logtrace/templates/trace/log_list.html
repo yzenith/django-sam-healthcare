@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Trace Logs – Healthcare Integration Demo{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 mb-0">Trace Logs</h1>
+    <div class="text-muted small">Traceability timeline for inbound HL7 / JSON / EDI payloads</div>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="badge text-bg-secondary">Total: {{ total_count }}</span>
+    <span class="badge text-bg-danger">Errors: {{ error_count }}</span>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small text-muted" for="trace_id">Trace ID contains</label>
+        <input id="trace_id" name="trace_id" class="form-control"
+               value="{{ request.GET.trace_id|default:'' }}"
+               placeholder="e.g. a1b2c3..." />
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small text-muted" for="input_type">Input Type</label>
+        <select id="input_type" name="input_type" class="form-select">
+          <option value="">All</option>
+          {% for v in input_types %}
+            <option value="{{ v }}" {% if request.GET.input_type == v %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small text-muted" for="status">Status</label>
+        <select id="status" name="status" class="form-select">
+          <option value="">All</option>
+          {% for v in statuses %}
+            <option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small text-muted" for="has_errors">Has Errors</label>
+        <select id="has_errors" name="has_errors" class="form-select">
+          <option value="">All</option>
+          <option value="1" {% if request.GET.has_errors == "1" %}selected{% endif %}>Yes</option>
+          <option value="0" {% if request.GET.has_errors == "0" %}selected{% endif %}>No</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary w-100" type="submit">Apply</button>
+        <a class="btn btn-outline-secondary w-100" href="{% url 'trace-logs-page' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Timestamp</th>
+            <th>Trace ID</th>
+            <th>Input</th>
+            <th>Status</th>
+            <th>Summary</th>
+            <th>Errors</th>
+            <th>Output</th>
+            <th class="text-end">Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+            <tr>
+              <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+              <td class="text-nowrap">
+                <a href="{% url 'trace-detail-page' trace_id=log.trace_id %}"
+                   class="font-monospace text-decoration-none">
+                  {{ log.trace_id }}
+                </a>
+              </td>
+              <td><span class="badge text-bg-secondary">{{ log.input_type }}</span></td>
+
+              <td>
+                {% if log.status == "PROCESSED" %}
+                  <span class="badge text-bg-success">{{ log.status }}</span>
+                {% elif log.status == "FAILED" %}
+                  <span class="badge text-bg-danger">{{ log.status }}</span>
+                {% else %}
+                  <span class="badge text-bg-warning text-dark">{{ log.status }}</span>
+                {% endif %}
+              </td>
+
+              <td>{{ log.summary }}</td>
+
+              <td>
+                {% if log.error_count > 0 %}
+                  <span class="badge text-bg-danger">{{ log.error_count }}</span>
+                {% else %}
+                  <span class="badge text-bg-success">0</span>
+                {% endif %}
+              </td>
+
+              <td><span class="badge text-bg-light text-dark border">{{ log.output_type|default:"-" }}</span></td>
+
+              <td class="text-end text-nowrap">
+                {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-muted p-4">No logs found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if is_paginated %}
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="small text-muted">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+      </div>
+      <div class="d-flex gap-2">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">
+            Previous
+          </a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">
+            Next
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

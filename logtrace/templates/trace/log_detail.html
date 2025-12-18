@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Trace {{ log.trace_id }} – Healthcare Integration Demo{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 mb-0">Trace Detail</h1>
+    <div class="text-muted small">Correlation ID and ordered processing steps</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'trace-logs-page' %}">Back to Logs</a>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="text-muted small">Trace ID</div>
+        <div class="font-monospace">{{ log.trace_id }}</div>
+
+        <div class="mt-2 d-flex flex-wrap gap-2">
+          <span class="badge text-bg-secondary">{{ log.input_type }}</span>
+          <span class="badge text-bg-light text-dark border">{{ log.output_type|default:"-" }}</span>
+
+          {% if log.status == "PROCESSED" %}
+            <span class="badge text-bg-success">{{ log.status }}</span>
+          {% elif log.status == "FAILED" %}
+            <span class="badge text-bg-danger">{{ log.status }}</span>
+          {% else %}
+            <span class="badge text-bg-warning text-dark">{{ log.status }}</span>
+          {% endif %}
+
+          {% if log.error_count > 0 %}
+            <span class="badge text-bg-danger">errors: {{ log.error_count }}</span>
+          {% else %}
+            <span class="badge text-bg-success">errors: 0</span>
+          {% endif %}
+
+          <span class="badge text-bg-light text-dark border">
+            {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
+          </span>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="text-muted small">Timestamp</div>
+        <div class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</div>
+
+        {% if log.summary %}
+          <div class="mt-2 text-muted small">Summary</div>
+          <div>{{ log.summary }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Parsed Preview + Meta -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <strong>Parsed Preview</strong>
+        <span class="text-muted small ms-2">triage view</span>
+      </div>
+      <div class="card-body">
+        <pre class="bg-light border rounded p-2 small mb-0">{% if log.parsed_preview %}{{ log.parsed_preview|pprint }}{% else %}No preview available.{% endif %}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <strong>Meta</strong>
+        <span class="text-muted small ms-2">sender / routing context</span>
+      </div>
+      <div class="card-body">
+        <pre class="bg-light border rounded p-2 small mb-0">{% if log.meta %}{{ log.meta|pprint }}{% else %}No meta provided.{% endif %}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Steps -->
+<div class="card mb-3">
+  <div class="card-header bg-white d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <div>
+      <strong>Processing Steps</strong>
+      <span class="text-muted small ms-2">ordered timeline</span>
+    </div>
+    <span class="text-muted small">Steps: {{ steps|length }}</span>
+  </div>
+
+  <div class="card-body">
+    {% for s in steps %}
+      <div class="border rounded p-3 mb-2">
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+          <div>
+            <div class="fw-semibold">
+              <span class="font-monospace">#{{ s.sequence }}</span>
+              <span class="ms-2">{{ s.step_name }}</span>
+
+              {% if s.status == "OK" %}
+                <span class="badge text-bg-success ms-2">OK</span>
+              {% elif s.status == "WARN" %}
+                <span class="badge text-bg-warning text-dark ms-2">WARN</span>
+              {% else %}
+                <span class="badge text-bg-danger ms-2">ERROR</span>
+              {% endif %}
+            </div>
+            <div class="text-muted small">{{ s.created_at|date:"Y-m-d H:i:s" }}</div>
+          </div>
+
+          <div class="text-muted small font-monospace">{{ s.id }}</div>
+        </div>
+
+        {% if s.message %}
+          <div class="mt-2">{{ s.message }}</div>
+        {% endif %}
+
+        {% if s.details %}
+          <pre class="bg-light border rounded p-2 small mt-2 mb-0">{{ s.details|pprint }}</pre>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="text-muted">No steps recorded for this trace.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Raw payload -->
+<div class="card">
+  <div class="card-header bg-white">
+    <strong>Raw Payload</strong>
+    <span class="text-muted small ms-2">demo storage</span>
+  </div>
+  <div class="card-body">
+    <details>
+      <summary class="text-primary">Show / Hide Raw Payload</summary>
+      <pre class="bg-light border rounded p-2 small mt-2 mb-0">{{ log.raw_payload }}</pre>
+    </details>
+  </div>
+</div>
+{% endblock %}

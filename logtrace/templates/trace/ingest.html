@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Trace Ingest – Healthcare Integration Demo{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 mb-0">Trace Ingest</h1>
+    <div class="text-muted small">Create a TraceLog by submitting raw HL7 / JSON / EDI payload</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'trace-logs-page' %}">View Trace Logs</a>
+  </div>
+</div>
+
+{% if error %}
+  <div class="alert alert-danger">
+    {{ error }}
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Input Type</label>
+          <select name="input_type" class="form-select">
+            <option value="HL7" {% if default_input_type == "HL7" %}selected{% endif %}>HL7</option>
+            <option value="JSON" {% if default_input_type == "JSON" %}selected{% endif %}>JSON</option>
+            <option value="EDI" {% if default_input_type == "EDI" %}selected{% endif %}>EDI</option>
+            <option value="OTHER" {% if default_input_type == "OTHER" %}selected{% endif %}>OTHER</option>
+        </select>
+
+          <div class="form-text">Declared type; helps parsing/validation routing.</div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Output Type</label>
+          <select name="output_type" class="form-select">
+            <option value="FHIR_JSON" {% if default_output_type == "FHIR_JSON" %}selected{% endif %}>FHIR_JSON</option>
+            <option value="X12_837" {% if default_output_type == "X12_837" %}selected{% endif %}>X12_837</option>
+            <option value="X12_835" {% if default_output_type == "X12_835" %}selected{% endif %}>X12_835</option>
+            <option value="OTHER" {% if default_output_type == "OTHER" %}selected{% endif %}>OTHER</option>
+          </select>
+          <div class="form-text">Used for trace summary + downstream mapping intent.</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Meta (JSON)</label>
+          <textarea name="meta" class="form-control font-monospace" rows="6"
+                    placeholder='{"source":"trace_ui","env":"local"}'>{{ default_meta }}</textarea>
+          <div class="form-text">Optional JSON context (source, channel, sender, correlation, etc.).</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Raw Payload</label>
+          <textarea name="raw_payload" class="form-control font-monospace" rows="10"
+                    placeholder="Paste HL7 / JSON / EDI payload here...">{{ default_raw_payload }}</textarea>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">Create Trace</button>
+          <a class="btn btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Reset</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="alert alert-warning mt-3 mb-0 small">
+  <strong>Note:</strong> This UI is for demo/operator testing only. Do not paste real PHI.
+</div>
+{% endblock %}

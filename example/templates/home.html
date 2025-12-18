@@ -3,91 +3,151 @@
 {% block title %}Home – Healthcare Integration Demo{% endblock %}
 
 {% block content %}
-  <div class="row mb-4">
-    <div class="col-lg-8">
-      <h1 class="mb-3">Healthcare Integration Demo</h1>
-      <p class="lead">
-        This demo shows a realistic healthcare integration flow:
-        <strong>HL7 v2 → FHIR R4 → X12 (837/835)</strong> with
-        Mirth Connect, Django REST Framework, and a Postgres backend.
-      </p>
-      <p class="text-muted">
-        Use the sections below to explore how an HL7 message can be transformed
-        into modern formats and logged for auditing and analytics.
-      </p>
+<!-- Hero / Story -->
+<div class="row mb-5">
+  <div class="col-lg-9">
+    <h1 class="mb-3">Healthcare Integration Demo</h1>
+
+    <p class="lead">
+      In real healthcare systems, data rarely fails because of a single bug.
+      It fails because messages move across <strong>formats, vendors, protocols,
+      and responsibilities</strong>.
+    </p>
+
+    <p class="lead">
+      This demo models that reality by tracing a single message as it moves through:
+      <strong>HL7 v2 → FHIR R4 → X12 (837 / 835)</strong>,
+      with full observability, validation, and auditability.
+    </p>
+
+    <p class="text-muted">
+      The goal is not just transformation, but <strong>traceability</strong>:
+      answering questions like <em>“What happened?”</em>,
+      <em>“Where did it fail?”</em>, and
+      <em>“Can we prove it later?”</em>
+    </p>
+  </div>
+</div>
+
+<!-- Why this matters -->
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <div class="alert alert-secondary">
+      <strong>Why this matters:</strong>
+      In production healthcare integrations, analysts and architects must debug
+      message flows involving EHRs, clearinghouses, and payers — often days or weeks
+      after the original transaction occurred.
+      <br><br>
+      This demo focuses on the skills required to operate those systems,
+      not just build them.
     </div>
   </div>
+</div>
 
-  <div class="row g-4">
-    <!-- HL7 Playground card -->
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body d-flex flex-column">
-          <h5 class="card-title">HL7 Playground</h5>
-          <p class="card-text">
-            Paste ADT/ORM/ORU HL7 v2 messages and see how they are parsed into
-            <span class="badge bg-secondary badge-hl7">HL7</span>
-            <span class="badge bg-secondary badge-fhir">FHIR R4</span>
-            and
-            <span class="badge bg-secondary badge-x12">X12 837</span>
-            structures.
-          </p>
-          <div class="mt-auto">
-            <a href="{% url 'hl7-playground' %}" class="btn btn-primary btn-sm">
-              Open HL7 Playground
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Mirth Live Feed card -->
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body d-flex flex-column">
-          <h5 class="card-title">Mirth Live Feed</h5>
-          <p class="card-text">
-            View messages coming in from
-            <strong>Mirth Connect channels</strong> into the Django API.
-            Inspect the raw HL7, mapped FHIR resources, and generated X12 payloads.
-          </p>
-          <div class="mt-auto">
-            <a href="{% url 'mirth-messages' %}" class="btn btn-outline-primary btn-sm">
-              View Mirth Messages
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- API & Security card -->
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body d-flex flex-column">
-          <h5 class="card-title">API & Security</h5>
-          <p class="card-text">
-            The backend uses Django REST Framework with JWT authentication
-            (for demo clients) and optional HMAC validation (for Mirth
-            server-to-server calls). Logs are stored in Postgres for
-            traceability.
-          </p>
-          <ul class="small text-muted mb-3">
-            <li>JWT-protected HL7 transform endpoint</li>
-            <li>HMAC signature for Mirth HTTP sender</li>
-            <li>Synthetic data only – no real PHI</li>
-          </ul>
-          <div class="mt-auto">
-            <!-- 这里可以以后指向 README 或 API docs 页面 -->
-            <a href="#" class="btn btn-light btn-sm disabled" aria-disabled="true">
-              API Docs (coming soon)
-            </a>
-          </div>
+<!-- Capabilities -->
+<div class="row g-4 mb-5">
+  <!-- HL7 Playground -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">HL7 Playground</h5>
+        <p class="card-text">
+          Start at the source.
+          Paste real-world HL7 v2 messages (ADT / ORM / ORU) and observe how they
+          are parsed, validated, and prepared for downstream transformation.
+        </p>
+        <p class="small text-muted">
+          This simulates data arriving from hospital EHR systems.
+        </p>
+        <div class="mt-auto">
+          <a href="{% url 'hl7-playground' %}" class="btn btn-primary btn-sm">
+            Open HL7 Playground
+          </a>
         </div>
       </div>
     </div>
   </div>
-{% endblock %}
 
-{% block extra_js %}
-  {# 如需 home 页专用 JS，可以写在这里 #}
+  <!-- Mirth -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">Mirth Live Feed</h5>
+        <p class="card-text">
+          View messages delivered through
+          <strong>Mirth Connect channels</strong>,
+          simulating real interface engines used by hospitals and labs.
+        </p>
+        <p class="small text-muted">
+          Shows how messages arrive asynchronously and are handed off to APIs.
+        </p>
+        <div class="mt-auto">
+          <a href="{% url 'mirth-messages' %}" class="btn btn-outline-primary btn-sm">
+            View Mirth Messages
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Traceability -->
+  <div class="col-md-4">
+    <div class="card h-100 border-primary">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">Traceability & Audit</h5>
+        <p class="card-text">
+          Every inbound payload generates a <strong>Trace ID</strong>.
+          Processing steps, validation outcomes, transformation decisions,
+          and errors are recorded in sequence.
+        </p>
+        <p class="small text-muted">
+          This reflects how integration analysts investigate production issues.
+        </p>
+        <div class="mt-auto">
+          <a href="{% url 'trace-logs-page' %}" class="btn btn-primary btn-sm">
+            View Trace Logs
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Architecture explanation -->
+<div class="row mb-5">
+  <div class="col-lg-10">
+    <h3>How this demo is designed</h3>
+    <ul class="text-muted">
+      <li>
+        <strong>Ingress-first design:</strong>
+        All entry points (HL7 UI, Mirth, API) feed a shared trace pipeline.
+      </li>
+      <li>
+        <strong>System observability:</strong>
+        Failures are captured as data, not just logs.
+      </li>
+      <li>
+        <strong>Analyst-friendly UI:</strong>
+        Built to support investigation, not just development.
+      </li>
+      <li>
+        <strong>Modern stack:</strong>
+        Django REST Framework, Postgres, JWT/HMAC security, and container-ready patterns.
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- Compliance -->
+<div class="row">
+  <div class="col-lg-10">
+    <div class="alert alert-warning small">
+      <strong>Compliance Notice:</strong>
+      This demo uses synthetic data only.
+      No real PHI is stored or processed.
+      The system is designed for learning, demonstration,
+      and portfolio evaluation purposes.
+    </div>
+  </div>
+</div>
 {% endblock %}

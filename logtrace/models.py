@@ -55,7 +55,9 @@ class TraceStep(models.Model):
 
     class Meta:
         ordering = ["sequence"]
-        index_together = [("trace_log", "sequence")]
+        indexes = [
+            models.Index(fields=["trace_log", "sequence"], name="tracestep_trace_seq_idx"),
+        ]
 
     def __str__(self):
         return f"{self.trace_log.trace_id} #{self.sequence} {self.step_name} {self.status}"

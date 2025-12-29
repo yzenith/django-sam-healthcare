@@ -1,5 +1,8 @@
-🏥 HL7 → FHIR → X12 837 Healthcare Integration Demo
-Built by Sam Yan · Healthcare Interoperability Engineer
+🏥 End-to-End Healthcare Integration Demo (HL7 v2, FHIR R4, X12 837)
+
+Built by Sam Yan  
+Target Role: Integration Analyst / Healthcare Interoperability
+
 
 🌐 Live Demo: https://django-sam-healthcare.vercel.app/
 
@@ -7,27 +10,22 @@ Built by Sam Yan · Healthcare Interoperability Engineer
 
 🧪 Playground: https://django-sam-healthcare.vercel.app/hl7/playground/
 
-🚀 Overview
+## Overview
 
-This project demonstrates a complete healthcare integration pipeline, built end-to-end with real interoperability standards:
+This project simulates a real-world healthcare interoperability workflow commonly seen between:
 
-HL7 v2 ADT ingestion (MLLP/TCP)
+- Hospital / EMR systems
+- Integration engines (Mirth Connect)
+- Analytics & downstream systems (FHIR APIs, Claims pipelines)
 
-Mirth Connect TCP Listener + HTTP Sender
+The demo focuses on **how clinical and administrative data flows across systems**, including:
+- Message ingestion
+- Format transformation
+- Validation and traceability
+- Error visibility and replay
 
-Django REST API (Serverless Vercel)
+This mirrors day-to-day responsibilities of an **Integration Analyst** supporting EMR ↔ LIS ↔ Clearinghouse integrations.
 
-FHIR resource generation (Patient + Encounter)
-
-X12 837 claim generation
-
-Cloud database logging (Neon Postgres)
-
-Web dashboard + message detail viewer
-
-Interactive HL7 Playground (client-side tester)
-
-This is a practical demo showing the same skills used in healthcare integration roles (Interface Engineer, Interoperability Engineer, API Integration Developer, etc.)
 
 🧩 Architecture
 GitHub-friendly Mermaid diagram (works on GitHub)
@@ -47,9 +45,12 @@ flowchart LR
     DjangoAPI -->|"Return JSON (Patient, Encounter, 837)"| Mirth
 
 💎 Features (What this demo proves I can do)
-✔ HL7 v2 ADT Parsing
+HL7 v2 ADT message ingestion via MLLP (ADT^A01 / A04 / A08)
 
-Extracts PID, PV1, demographics, encounter info, provider, etc.
+Use case:
+- Simulates patient admission and demographic updates from EMR systems
+- Validates segment-level fields (PID, PV1)
+
 
 ✔ FHIR resource generation
 
@@ -121,14 +122,30 @@ Mirth → Django endpoint (raw HL7)
 
 Dashboard of recent HL7 messages
 
-🔹 GET /mirth/messages/<id>/
+### Message Traceability & Observability
+
+- End-to-end message tracking with unique correlation IDs
+- View raw HL7 payloads and parsed fields
+- Supports integration troubleshooting and partner issue analysis
+
+This feature reflects real integration support scenarios:
+- Identifying dropped messages
+- Verifying transformation accuracy
+- Supporting vendor or client investigations
+
 
 Detail viewer
 
 🧪 Try It Yourself
-Using Mirth?
+## What This Demo Demonstrates
 
-Send an ADT^A01 message to your TCP Listener → It will appear on the dashboard.
+✔ Understanding of healthcare data standards (HL7 v2, FHIR, X12)  
+✔ Ability to trace and troubleshoot data across systems  
+✔ Experience supporting integration engines (Mirth Connect)  
+✔ API-based integration and validation workflows  
+✔ Production-style logging and observability mindset  
+
+This project was intentionally designed to resemble real integration analyst work rather than a theoretical exercise.
 
 No Mirth?
 

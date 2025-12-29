@@ -52,6 +52,88 @@ def hl7_to_all(hl7_text: str):
         "raw_hl7": hl7_text,
     }
 
+def extract_hl7_summary(hl7_text: str) -> dict:
+    """
+    Extract analyst-friendly summary fields from an HL7 message.
+    This is NOT a full parser – it is designed for triage & support use.
+    """
+
+    summary = {
+        "message_type": "",
+        "patient_id": "",
+        "patient_class": "",
+        "encounter_present": False,
+        "event_time": None,
+    }
+
+    if not hl7_text:
+        return summary
+
+    # Normalize line breaks
+    hl7_text = hl7_text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [l for l in hl7_text.split("\n") if l.strip()]
+
+    for line in lines:
+        fields = line.split("|")
+        segment = fields[0]
+
+        # MSH|^~\&|...|ADT^A01|...
+        if segment == "MSH" and len(fields) > 8:
+            summary["message_type"] = fields[8]
+
+            # MSH-7: Message Date/Time
+            if len(fields) > 6 and fields[6]:
+                try:
+                    summary["event_time"] = datetime.strptime(fields[6], "%Y%m%d%H%M%S")
+                except ValueError:
+                    pass
+
+        # PID|...|PID-3 Patient Identifier
+        elif segment == "PID":
+            if len(fields) > 3:
+                summary["patient_id"] = fields[3]
+
+        # PV1|...|PV1-2 Patient Class
+        elif segment == "PV1":
+            summary["encounter_present"] = True
+            if len(fields) > 2:
+                summary["patient_class"] = fields[2]
+
+            # PV1-44 Admit Date/Time (preferred over MSH-7 if present)
+            if len(fields) > 44 and fields[44]:
+                try:
+                    summary["event_time"] = datetime.strptime(fields[44], "%Y%m%d%H%M%S")
+                except ValueError:
+                    pass
+
+    return summary
+
+
+def validate_hl7_message(hl7_text: str):
+    errors, warnings = [], []
+    if not hl7_text.strip().startswith("MSH"):
+        errors.append("Missing MSH segment (message must start with MSH)")
+        return errors, warnings
+
+    segments = parse_hl7(hl7_text)
+    msh = (segments.get("MSH") or [["MSH"]])[0]
+    msg_type = msh[8] if len(msh) > 8 else ""
+    if not msg_type:
+        errors.append("Missing MSH-9 (message type)")
+
+    if msg_type.startswith("ADT"):
+        if "PID" not in segments:
+            errors.append("ADT requires PID segment")
+        else:
+            pid = segments["PID"][0]
+            pid3 = pid[3] if len(pid) > 3 else ""
+            if not pid3:
+                errors.append("Missing PID-3 (Patient Identifier)")
+        if "PV1" not in segments:
+            warnings.append("Missing PV1 segment (Encounter will not be generated)")
+
+    return errors, warnings
+
 
 
 def parse_hl7(hl7_text: str):

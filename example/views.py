@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 import jwt
 from datetime import datetime, timedelta
 from django.http import HttpResponseForbidden
@@ -10,7 +11,7 @@ from rest_framework.renderers import JSONRenderer
 from django.shortcuts import get_object_or_404, render 
 
 from .serializers import HL7TransformRequestSerializer
-from .hl7_utils import hl7_oru_to_fhir, hl7_to_all
+from .hl7_utils import hl7_to_all, validate_hl7_message, extract_hl7_summary
 
 from .models import HL7MessageLog
 
@@ -148,46 +149,131 @@ class HL7TransformView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 
+# class MirthHL7View(APIView):
+#     def post(self, request, *args, **kwargs):
+#         # 1) Very simple auth
+#         if request.headers.get("X-Integration-Key") != "super-secret-demo-token":  # in real life use env var
+#             return HttpResponseForbidden("Invalid integration key")
+
+#         # 2) Read raw body (plain text or JSON)
+#         body = request.body.decode("utf-8", errors="ignore").strip()
+#         hl7_message = body
+#         if "application/json" in (request.content_type or ""):
+#             try:
+#                 data = json.loads(body)
+#                 hl7_message = data.get("hl7_message", body)
+#             except ValueError:
+#                 hl7_message = body
+
+#         # 3) Transform HL7 → (patient, encounter, x12)
+#         result = hl7_to_all(hl7_message)
+#         patient = result.get("patient") or {}
+#         encounter = result.get("encounter")
+#         x12 = result.get("x12_837") or ""
+
+#         # 4) ✅ SAVE LOG TO DB
+#         log = HL7MessageLog.objects.create(
+#             source_system="MIRTH",
+#             message_type="ADT-A01",
+#             raw_hl7=hl7_message,
+#             patient_id=patient.get("id") or "",
+#             encounter_present=bool(encounter),
+#             x12_length=len(x12),
+#         )
+
+#         # 5) Return summary to Mirth
+#         return Response(
+#             {
+#                 "status": "ok",
+#                 "log_id": log.id,
+#                 "patientId": log.patient_id,
+#                 "hasEncounter": log.encounter_present,
+#                 "x12Length": log.x12_length,
+#             },
+#             status=status.HTTP_200_OK,
+#         )
+    
 class MirthHL7View(APIView):
     def post(self, request, *args, **kwargs):
-        # 1) Very simple auth
-        if request.headers.get("X-Integration-Key") != "super-secret-demo-token":  # in real life use env var
-            return HttpResponseForbidden("Invalid integration key")
+        trace_id = uuid.uuid4().hex
 
-        # 2) Read raw body (plain text or JSON)
-        body = request.body.decode("utf-8", errors="ignore").strip()
-        hl7_message = body
-        if "application/json" in (request.content_type or ""):
-            try:
-                data = json.loads(body)
-                hl7_message = data.get("hl7_message", body)
-            except ValueError:
-                hl7_message = body
+        # 1) 读取 HL7（你可以按你的 payload key 改）
+        hl7_message = request.data.get("hl7_message") or request.data.get("hl7") or ""
+        if not isinstance(hl7_message, str) or not hl7_message.strip():
+            return Response(
+                {"status": "error", "trace_id": trace_id, "error": "Missing hl7_message"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # 3) Transform HL7 → (patient, encounter, x12)
-        result = hl7_to_all(hl7_message)
-        patient = result.get("patient") or {}
-        encounter = result.get("encounter")
-        x12 = result.get("x12_837") or ""
+        # 2) 初始化 steps（你截图里用到了 steps，但没定义）
+        steps = []
+        steps.append({"sequence": 1, "step": "RECEIVED", "status": "OK"})
 
-        # 4) ✅ SAVE LOG TO DB
-        log = HL7MessageLog.objects.create(
+        # 3) normalize 换行符（Mirth 常见 \r）
+        normalized = hl7_message.replace("\r\n", "\n").replace("\r", "\n")
+
+        # 4) validate + summary
+        errors, warnings = validate_hl7_message(normalized)
+        summary = extract_hl7_summary(normalized)
+
+        if errors:
+            steps.append(
+                {
+                    "sequence": 2,
+                    "step": "VALIDATION",
+                    "status": "ERROR",
+                    "message": "; ".join(errors)[:500],
+                }
+            )
+
+            HL7MessageLog.objects.create(
+                trace_id=trace_id,
+                source_system="MIRTH",
+                message_type=summary.get("message_type") or "",
+                raw_hl7=normalized,
+                processing_status=HL7MessageLog.ProcessingStatus.FAILED,
+                error_category=HL7MessageLog.ErrorCategory.VALIDATION,
+                error_message="; ".join(errors)[:1000],
+                steps=steps,
+            )
+
+            return Response(
+                {
+                    "status": "failed",
+                    "trace_id": trace_id,
+                    "error_category": "VALIDATION",
+                    "errors": errors,
+                    "warnings": warnings,
+                    "summary": summary,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        steps.append({"sequence": 2, "step": "VALIDATION", "status": "OK"})
+        result = hl7_to_all(normalized)
+        steps.append({"sequence": 3, "step": "TRANSFORM", "status": "OK"})
+
+        HL7MessageLog.objects.create(
+            trace_id=trace_id,
             source_system="MIRTH",
-            message_type="ADT-A01",
-            raw_hl7=hl7_message,
-            patient_id=patient.get("id") or "",
-            encounter_present=bool(encounter),
-            x12_length=len(x12),
+            message_type=summary.get("message_type") or "",
+            raw_hl7=normalized,
+            processing_status=HL7MessageLog.ProcessingStatus.TRANSFORMED,
+            error_category=HL7MessageLog.ErrorCategory.NONE,
+            error_message="",
+            steps=steps,
+            has_x12=bool(result.get("x12_837")),
         )
 
-        # 5) Return summary to Mirth
         return Response(
             {
                 "status": "ok",
-                "log_id": log.id,
-                "patientId": log.patient_id,
-                "hasEncounter": log.encounter_present,
-                "x12Length": log.x12_length,
+                "trace_id": trace_id,
+                "summary": summary,
+                "warnings": warnings,
+                "fhir": result.get("fhir"),
+                "x12_837": result.get("x12_837"),
             },
             status=status.HTTP_200_OK,
         )
+

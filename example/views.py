@@ -1,7 +1,6 @@
 import json
 import os
 import uuid
-import warnings
 
 from django.http import HttpResponseForbidden
 import jwt
@@ -11,7 +10,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 from django.shortcuts import get_object_or_404, render 
-from .hl7_utils import *
+from .hl7_utils import (
+    hl7_to_all,
+    extract_hl7_summary,
+    validate_hl7_message,
+    build_message_profile,
+    build_trigger_event,
+    extract_source_context_from_msh,
+    hl7_oru_to_fhir,
+)
 
 from .models import HL7MessageLog
 
@@ -69,7 +76,18 @@ def hl7_playground(request):
     return render(request, "hl7_playground.html")
 
 def mirth_messages(request):
-    logs = HL7MessageLog.objects.order_by("-created_at")[:20]
+    # logs = HL7MessageLog.objects.order_by("-created_at")[:20]
+    qs = HL7MessageLog.objects.order_by("-created_at")
+
+    status_q = request.GET.get("status")
+    if status_q:
+        qs = qs.filter(processing_status=status_q)
+
+    type_q = request.GET.get("type")
+    if type_q:
+        qs = qs.filter(message_type__icontains=type_q)
+
+    logs = qs[:50]
     return render(request, "mirth_messages.html", {"logs": logs})
     
 
@@ -201,12 +219,15 @@ class MirthHL7View(APIView):
         normalized = hl7_message.replace("\r\n", "\n").replace("\r", "\n")
 
         # 4) validate + summary
-        errors, warnings = validate_hl7_message(normalized)
+        errors, warn_list = validate_hl7_message(normalized)
         summary = extract_hl7_summary(normalized) or {}
         message_profile = build_message_profile(summary.get("message_type") or "")
         trigger_event = build_trigger_event(summary.get("message_type") or "")
 
-        incoming_source_context = request.data.get("source_context") or {}
+        incoming_source_context = {}
+        if request.content_type and "application/json" in request.content_type:
+            incoming_source_context = (data.get("source_context") or {}) if isinstance(data, dict) else {}
+
         if not isinstance(incoming_source_context, dict):
             incoming_source_context = {}
 
@@ -250,7 +271,7 @@ class MirthHL7View(APIView):
                     "trace_id": trace_id,
                     "error_category": "VALIDATION",
                     "errors": errors,
-                    "warnings": warnings,
+                    "warnings": warn_list,
                     "summary": summary,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -258,12 +279,22 @@ class MirthHL7View(APIView):
 
         steps.append({"sequence": 2, "step": "VALIDATION", "status": "OK"})
         result = hl7_to_all(normalized)
+        x12_837 = result.get("x12_837") or ""
+        patient_id = (summary.get("patient_id") or "")[:64]
+        encounter_present = bool(summary.get("encounter_present"))
+        patient_class = (summary.get("patient_class") or "")[:8]
+        event_time = summary.get("event_time")  # 如果你 summary 里是 datetime，直接用
+        x12_length = len(x12_837) if isinstance(x12_837, str) else 0
+        has_x12 = bool(x12_837)
         steps.append({"sequence": 3, "step": "TRANSFORM", "status": "OK"})
 
         # validate 通过后，加入一个轻量判断（不挡请求，只写 steps/warnings）：
+        error_category = HL7MessageLog.ErrorCategory.NONE
+        error_message = ""
         if not source_context.get("sending_application") or not source_context.get("sending_facility"):
-            warnings.append("Missing MSH-3/4 (sending application/facility); common facility variance.")
-
+            warn_list.append("Missing MSH-3/4 (sending application/facility); common facility variance.")
+            error_category = HL7MessageLog.ErrorCategory.FACILITY_VARIANCE
+            error_message = "Facility variance: missing MSH-3/4; routing/config may differ."
 
         
 
@@ -276,10 +307,18 @@ class MirthHL7View(APIView):
             trigger_event=trigger_event,
             raw_hl7=normalized,
             processing_status=HL7MessageLog.ProcessingStatus.TRANSFORMED,
-            error_category=HL7MessageLog.ErrorCategory.NONE,
-            error_message="",
+            # error_category=HL7MessageLog.ErrorCategory.NONE,
+            # error_message="",
             steps=steps,
-            has_x12=bool(result.get("x12_837")),
+            # has_x12=bool(result.get("x12_837")),
+            patient_id=patient_id,
+            encounter_present=encounter_present,
+            patient_class=patient_class,
+            event_time=event_time,
+            x12_length=x12_length,
+            has_x12=has_x12,
+            error_category=error_category,
+            error_message=error_message,
         )
 
         return Response(
@@ -287,7 +326,7 @@ class MirthHL7View(APIView):
                 "status": "ok",
                 "trace_id": trace_id,
                 "summary": summary,
-                "warnings": warnings,
+                "warnings": warn_list,
                 "fhir": result.get("fhir"),
                 "x12_837": result.get("x12_837"),
             },

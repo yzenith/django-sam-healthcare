@@ -1,17 +1,17 @@
 import json
 import os
 import uuid
-import jwt
-from datetime import datetime, timedelta
+import warnings
+
 from django.http import HttpResponseForbidden
+import jwt
+from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 from django.shortcuts import get_object_or_404, render 
-
-from .serializers import HL7TransformRequestSerializer
-from .hl7_utils import hl7_to_all, validate_hl7_message, extract_hl7_summary
+from .hl7_utils import *
 
 from .models import HL7MessageLog
 
@@ -148,62 +148,50 @@ class HL7TransformView(APIView):
         result = hl7_to_all(hl7_message)
         return Response(result, status=status.HTTP_200_OK)
 
-
-# class MirthHL7View(APIView):
-#     def post(self, request, *args, **kwargs):
-#         # 1) Very simple auth
-#         if request.headers.get("X-Integration-Key") != "super-secret-demo-token":  # in real life use env var
-#             return HttpResponseForbidden("Invalid integration key")
-
-#         # 2) Read raw body (plain text or JSON)
-#         body = request.body.decode("utf-8", errors="ignore").strip()
-#         hl7_message = body
-#         if "application/json" in (request.content_type or ""):
-#             try:
-#                 data = json.loads(body)
-#                 hl7_message = data.get("hl7_message", body)
-#             except ValueError:
-#                 hl7_message = body
-
-#         # 3) Transform HL7 → (patient, encounter, x12)
-#         result = hl7_to_all(hl7_message)
-#         patient = result.get("patient") or {}
-#         encounter = result.get("encounter")
-#         x12 = result.get("x12_837") or ""
-
-#         # 4) ✅ SAVE LOG TO DB
-#         log = HL7MessageLog.objects.create(
-#             source_system="MIRTH",
-#             message_type="ADT-A01",
-#             raw_hl7=hl7_message,
-#             patient_id=patient.get("id") or "",
-#             encounter_present=bool(encounter),
-#             x12_length=len(x12),
-#         )
-
-#         # 5) Return summary to Mirth
-#         return Response(
-#             {
-#                 "status": "ok",
-#                 "log_id": log.id,
-#                 "patientId": log.patient_id,
-#                 "hasEncounter": log.encounter_present,
-#                 "x12Length": log.x12_length,
-#             },
-#             status=status.HTTP_200_OK,
-#         )
     
 class MirthHL7View(APIView):
     def post(self, request, *args, **kwargs):
         trace_id = uuid.uuid4().hex
 
-        # 1) 读取 HL7（你可以按你的 payload key 改）
-        hl7_message = request.data.get("hl7_message") or request.data.get("hl7") or ""
-        if not isinstance(hl7_message, str) or not hl7_message.strip():
-            return Response(
-                {"status": "error", "trace_id": trace_id, "error": "Missing hl7_message"},
-                status=status.HTTP_400_BAD_REQUEST,
+        claims, jwt_err = validate_mirth_jwt(request)
+        if jwt_err:
+            HL7MessageLog.objects.create(
+                trace_id=trace_id,
+                source_system="MIRTH",
+                message_type="",
+                raw_hl7="",
+                processing_status=HL7MessageLog.ProcessingStatus.FAILED,
+                error_category=HL7MessageLog.ErrorCategory.AUTH,
+                error_message=jwt_err[:1000],
+                steps=[{"sequence": 1, "step": "AUTH", "status": "ERROR", "message": jwt_err[:255]}],
             )
+            return HttpResponseForbidden(jwt_err)
+
+        # 1) 读取 HL7（你可以按你的 payload key 改）
+
+        ### Old version:
+        # hl7_message = request.data.get("hl7_message") or request.data.get("hl7") or ""
+        # if not isinstance(hl7_message, str) or not hl7_message.strip():
+        #     return Response(
+        #         {"status": "error", "trace_id": trace_id, "error": "Missing hl7_message"},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
+
+
+        body = request.body.decode("utf-8", errors="ignore").strip()
+
+        hl7_message = ""
+        if request.content_type and "application/json" in request.content_type:
+            try:
+                data = json.loads(body) if body else {}
+                hl7_message = data.get("hl7_message") or data.get("hl7") or ""
+            except ValueError:
+                hl7_message = body
+        else:
+            hl7_message = body
+
+        if not hl7_message.strip():
+            ...
 
         # 2) 初始化 steps（你截图里用到了 steps，但没定义）
         steps = []
@@ -214,7 +202,23 @@ class MirthHL7View(APIView):
 
         # 4) validate + summary
         errors, warnings = validate_hl7_message(normalized)
-        summary = extract_hl7_summary(normalized)
+        summary = extract_hl7_summary(normalized) or {}
+        message_profile = build_message_profile(summary.get("message_type") or "")
+        trigger_event = build_trigger_event(summary.get("message_type") or "")
+
+        incoming_source_context = request.data.get("source_context") or {}
+        if not isinstance(incoming_source_context, dict):
+            incoming_source_context = {}
+
+        msh_ctx = extract_source_context_from_msh(normalized)
+
+        # 你想要的“EMR / vendor / facility_type”等可以从 payload 进来覆盖
+        # payload 例子：
+        # {
+        #   "hl7_message": "...",
+        #   "source_context": {"system_type":"EMR","vendor":"Epic","facility_type":"Acute Care Hospital"}
+        # }
+        source_context = {**msh_ctx, **incoming_source_context}
 
         if errors:
             steps.append(
@@ -229,7 +233,10 @@ class MirthHL7View(APIView):
             HL7MessageLog.objects.create(
                 trace_id=trace_id,
                 source_system="MIRTH",
+                source_context=source_context,
                 message_type=summary.get("message_type") or "",
+                message_profile=message_profile,
+                trigger_event=trigger_event,
                 raw_hl7=normalized,
                 processing_status=HL7MessageLog.ProcessingStatus.FAILED,
                 error_category=HL7MessageLog.ErrorCategory.VALIDATION,
@@ -253,10 +260,20 @@ class MirthHL7View(APIView):
         result = hl7_to_all(normalized)
         steps.append({"sequence": 3, "step": "TRANSFORM", "status": "OK"})
 
+        # validate 通过后，加入一个轻量判断（不挡请求，只写 steps/warnings）：
+        if not source_context.get("sending_application") or not source_context.get("sending_facility"):
+            warnings.append("Missing MSH-3/4 (sending application/facility); common facility variance.")
+
+
+        
+
         HL7MessageLog.objects.create(
             trace_id=trace_id,
             source_system="MIRTH",
+            source_context=source_context,
             message_type=summary.get("message_type") or "",
+            message_profile=message_profile,
+            trigger_event=trigger_event,
             raw_hl7=normalized,
             processing_status=HL7MessageLog.ProcessingStatus.TRANSFORMED,
             error_category=HL7MessageLog.ErrorCategory.NONE,

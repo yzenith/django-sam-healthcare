@@ -35,6 +35,35 @@
           <dt class="col-sm-3">Source system</dt>
           <dd class="col-sm-9">{{ log.source_system|default:"(unknown)" }}</dd>
 
+          <dt class="col-sm-3">Message profile</dt>
+          <dd class="col-sm-9">{{ log.message_profile|default:"—" }}</dd>
+
+          <dt class="col-sm-3">Sending app/facility</dt>
+          <dd class="col-sm-9">
+            {{ log.source_context.sending_application|default:"—" }}
+            /
+            {{ log.source_context.sending_facility|default:"—" }}
+          </dd>
+
+          <dt class="col-sm-3">EMR context</dt>
+          <dd class="col-sm-9">
+            {{ log.source_context.system_type|default:"—" }}
+            {{ log.source_context.vendor|default:"" }}
+            ({{ log.source_context.facility_type|default:"" }})
+          </dd>
+
+          <dt class="col-sm-3">Trigger</dt>
+          <dd class="col-sm-9">
+            {{ log.trigger_event.code|default:"—" }} —
+            {{ log.trigger_event.description|default:"" }}
+          </dd>
+
+          <dt class="col-sm-3">Business reason</dt>
+          <dd class="col-sm-9">
+            {{ log.trigger_event.business_reason|default:"—" }}
+          </dd>               
+
+
           <dt class="col-sm-3">Message type</dt>
           <dd class="col-sm-9">{{ log.message_type }}</dd>
 

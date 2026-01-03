@@ -1,6 +1,68 @@
 # app/hl7_utils.py
 from datetime import datetime
 
+ADT_EVENT_LABELS = {
+    "A01": "Admission (Inpatient/ER → Admit)",
+    "A02": "Transfer (Bed/Unit Change)",
+    "A03": "Discharge",
+    "A04": "Registration (Outpatient/ER)",
+    "A08": "Update Patient Info",
+}
+
+ORU_EVENT_LABELS = {
+    "R01": "Lab Result (Observation Report)",
+}
+
+ADT_EVENT_REASON = {
+    "A01": "Start inpatient workflow: care coordination + billing",
+    "A03": "Close encounter: discharge workflow + billing finalization",
+    "A08": "Update demographics/visit data; downstream reconciliation",
+}
+
+ORU_EVENT_REASON = {
+    "R01": "Publish lab results: clinical review + charge capture",
+}
+
+def build_trigger_event(message_type: str) -> dict:
+    parts = (message_type or "").split("^")
+    msg = parts[0] if len(parts) > 0 else ""
+    evt = parts[1] if len(parts) > 1 else ""
+
+    if msg == "ADT":
+        return {
+            "code": evt,
+            "description": ADT_EVENT_LABELS.get(evt, f"ADT Event {evt or '(unknown)'}"),
+            "business_reason": ADT_EVENT_REASON.get(evt, ""),
+        }
+    if msg == "ORU":
+        return {
+            "code": evt,
+            "description": ORU_EVENT_LABELS.get(evt, f"ORU Event {evt or '(unknown)'}"),
+            "business_reason": ORU_EVENT_REASON.get(evt, ""),
+        }
+    return {"code": evt, "description": "", "business_reason": ""}
+
+def build_message_profile(message_type: str) -> str:
+    """
+    Return something a hiring manager expects:
+    'HL7 v2 ADT (Admission)' not just 'ADT^A01'
+    """
+    if not message_type:
+        return "HL7 v2 (Unknown)"
+
+    parts = message_type.split("^")
+    msg = parts[0] if len(parts) > 0 else ""
+    evt = parts[1] if len(parts) > 1 else ""
+
+    if msg == "ADT":
+        label = ADT_EVENT_LABELS.get(evt, f"ADT Event {evt or '(unknown)'}")
+        return f"HL7 v2 ADT ({label})"
+    if msg == "ORU":
+        label = ORU_EVENT_LABELS.get(evt, f"ORU Event {evt or '(unknown)'}")
+        return f"HL7 v2 ORU ({label})"
+
+    return f"HL7 v2 {msg} ({evt})" if evt else f"HL7 v2 {msg}"
+
 def hl7_to_all(hl7_text: str):
     lines = hl7_text.strip().split("\n")
     msg_type = None
@@ -107,6 +169,44 @@ def extract_hl7_summary(hl7_text: str) -> dict:
                     pass
 
     return summary
+
+# example/hl7_utils.py
+def extract_source_context_from_msh(hl7_text: str) -> dict:
+    """
+    Pull basic 'who sent it' context from MSH.
+    MSH-3 Sending Application
+    MSH-4 Sending Facility
+    MSH-9 Message Type (e.g. ADT^A01)
+    """
+    ctx = {
+        "standard": "HL7 v2",
+        "interface_type": "",          # e.g. "ADT"
+        "sending_application": "",
+        "sending_facility": "",
+    }
+
+    if not hl7_text:
+        return ctx
+
+    hl7_text = hl7_text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [l for l in hl7_text.split("\n") if l.strip()]
+    msh = next((l for l in lines if l.startswith("MSH")), "")
+    if not msh:
+        return ctx
+
+    fields = msh.split("|")
+    # MSH segment indexes:
+    # [2]=MSH-3, [3]=MSH-4, [8]=MSH-9
+    if len(fields) > 2:
+        ctx["sending_application"] = fields[2]
+    if len(fields) > 3:
+        ctx["sending_facility"] = fields[3]
+    if len(fields) > 8:
+        msg_type = fields[8]  # ADT^A01
+        ctx["interface_type"] = (msg_type.split("^", 1)[0] if msg_type else "")
+
+    return ctx
+
 
 
 def validate_hl7_message(hl7_text: str):

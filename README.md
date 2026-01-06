@@ -1,153 +1,168 @@
-🏥 End-to-End Healthcare Integration Demo (HL7 v2, FHIR R4, X12 837)
+# Healthcare Integration Analyst Demo
 
-Built by Sam Yan  
-Target Role: Integration Analyst / Healthcare Interoperability
+## Purpose of This Demo
 
+This project demonstrates **how a Healthcare Integration Analyst thinks, evaluates, and manages data exchange**, rather than how an Integration Engineer builds large-scale infrastructure.
 
-🌐 Live Demo: https://django-sam-healthcare.vercel.app/
+Healthcare integrations are rarely clean or predictable. Messages arrive incomplete, malformed, duplicated, or semantically ambiguous. The analyst’s role is to **make integration behavior explicit, traceable, auditable, and operationally manageable**.
 
-📡 Mirth Logs: https://django-sam-healthcare.vercel.app/mirth/messages/
+This demo focuses on those analyst responsibilities.
 
-🧪 Playground: https://django-sam-healthcare.vercel.app/hl7/playground/
+---
 
-## Overview
+## Problem Statement
 
-This project simulates a real-world healthcare interoperability workflow commonly seen between:
+Healthcare systems exchange data across:
 
-- Hospital / EMR systems
-- Integration engines (Mirth Connect)
-- Analytics & downstream systems (FHIR APIs, Claims pipelines)
+* EMRs
+* Practice management systems
+* Clearinghouses
+* Downstream analytics and billing platforms
 
-The demo focuses on **how clinical and administrative data flows across systems**, including:
-- Message ingestion
-- Format transformation
-- Validation and traceability
-- Error visibility and replay
+These systems often:
 
-This mirrors day-to-day responsibilities of an **Integration Analyst** supporting EMR ↔ LIS ↔ Clearinghouse integrations.
+* Use inconsistent HL7 v2 implementations
+* Omit required fields
+* Send invalid or conflicting values
+* Require downstream normalization into modern data models
 
+Without proper validation, traceability, and review workflows, these integrations fail silently or create operational risk.
 
-🧩 Architecture
-GitHub-friendly Mermaid diagram (works on GitHub)
-flowchart LR
-    EHR["External System<br/>(EHR / PMS / LIS)"] -->|"HL7 v2 ADT over TCP (MLLP)"| Mirth["Mirth Connect<br/>TCP Listener"]
+---
 
-    Mirth -->|"HTTP POST<br/>text/plain HL7"| DjangoAPI["Django Healthcare API<br/>(Vercel Serverless)"]
+## Analyst Responsibilities Demonstrated
 
-    DjangoAPI -->|"Parse HL7 v2"| FHIR["FHIR Patient<br/>FHIR Encounter"]
+This demo is intentionally designed around **integration analyst responsibilities**, including:
 
-    FHIR -->|"Map fields to claim"| X12["X12 837 Claim<br/>(Professional)"]
+### 1. Message Intake & Classification
 
-    DjangoAPI -->|"Insert log row"| Neon["Neon Postgres<br/>HL7MessageLog table"]
+* Accepts inbound HL7 v2-style messages
+* Identifies message type and structure
+* Classifies messages before transformation
 
-    Neon -->|"SELECT last 50"| Dashboard["Web Dashboard<br/>/mirth/messages/"]
+### 2. Validation & Assumption Handling
 
-    DjangoAPI -->|"Return JSON (Patient, Encounter, 837)"| Mirth
+* Detects missing or malformed fields
+* Applies controlled assumptions when possible
+* Flags messages requiring manual review
 
-💎 Features (What this demo proves I can do)
-HL7 v2 ADT message ingestion via MLLP (ADT^A01 / A04 / A08)
+### 3. Normalization & Mapping
 
-Use case:
-- Simulates patient admission and demographic updates from EMR systems
-- Validates segment-level fields (PID, PV1)
+* Transforms HL7 data into a normalized internal representation
+* Separates mapping logic from transport logic
+* Makes field-level decisions explicit
 
+### 4. Traceability & Audit Logging
 
-✔ FHIR resource generation
+* Persists message-level traces
+* Records processing steps and outcomes
+* Enables post-event investigation and review
 
-Outputs valid FHIR JSON:
+### 5. Operational Visibility
 
-FHIR Patient Resource
+* Provides a UI to inspect message history
+* Allows analysts to understand *what happened* and *why*
+* Supports real-world troubleshooting scenarios
 
-FHIR Encounter Resource
+---
 
-✔ X12 837 Claim Builder
+## What This Demo Proves
 
-Creates a simplified 837P claim using fields extracted from ADT/PV1.
+This project demonstrates the ability to:
 
-✔ Mirth Connect Integration
+* Understand real-world healthcare data exchange challenges
+* Analyze HL7 messages beyond simple parsing
+* Design systems that support investigation and accountability
+* Think in terms of operational risk, not just code execution
+* Communicate integration behavior clearly to non-engineering stakeholders
 
-TCP Listener (HL7 v2.x)
+In short, it shows **how an analyst reduces integration ambiguity and failure risk**.
 
-JavaScript/Template routing
+---
 
-HTTP Sender to cloud endpoint
+## Example Integration Scenario
 
-ACK handling
+**Scenario:**
+An inbound ADT message arrives with a missing patient identifier.
 
-✔ Cloud Deployment
+**System Behavior:**
 
-Django API deployed on Vercel Serverless
+* Message is accepted but classified as `ACCEPTED_WITH_WARNING`
+* Missing field is recorded in the trace
+* Message is flagged for manual review
 
-Neon Postgres for persistent storage
+**Analyst Outcome:**
 
-Dynamically switches between SQLite (dev) and Postgres (prod)
+* Analyst reviews the trace log
+* Determines whether fallback logic is acceptable
+* Documents the decision for audit purposes
 
-✔ Observability & Dashboard
+This reflects how real healthcare integration incidents are handled.
 
-Each message logged into HL7MessageLog
+---
 
-Dashboard showing time, type, patient ID, encounter, 837 length
+## Technology Overview
 
-Detail page with:
+* **Backend:** Django, Django REST Framework
+* **Domain Focus:** HL7 v2-style messaging
+* **Persistence:** PostgreSQL-compatible ORM models
+* **UI:** Lightweight Django templates for operational review
 
-Raw HL7
+Technology choices are intentionally simple to keep focus on **integration logic and analyst decision-making**, not infrastructure complexity.
 
-FHIR Patient JSON
+---
 
-FHIR Encounter JSON
+## What This Demo Is Not
 
-Generated X12 837
+This project is **not** intended to be:
 
-🛠 Technologies Used
-Category	Tools
-Interface Engine	Mirth Connect
-HL7	HL7 v2 ADT, MLLP, Segment parsing
-FHIR	Patient, Encounter structures
-EDI	X12 837 Professional
-Backend	Django 5, DRF, Python
-Deployment	Vercel Serverless
-Database	Neon Postgres + SQLite (local)
-Frontend	Django Templates, CSS, jQuery
-Logging	DB audit table, dashboard
-📘 Endpoints
-🔹 POST /api/transform/
+* A full Mirth Connect replacement
+* A production-ready EMR or interface engine
+* A FHIR server with full specification coverage
+* A microservices or streaming platform
 
-Browser playground → HL7 input → FHIR + 837 output
+Those concerns fall under **integration engineering**, not analyst responsibilities.
 
-🔹 POST /api/mirth/hl7/
+---
 
-Mirth → Django endpoint (raw HL7)
+## Intended Audience
 
-🔹 GET /mirth/messages/
+This demo is built for:
 
-Dashboard of recent HL7 messages
+* Healthcare Integration Analyst roles
+* Interface Analysts
+* Implementation Analysts
+* Integration Operations teams
 
-### Message Traceability & Observability
+It is designed to support conversations with:
 
-- End-to-end message tracking with unique correlation IDs
-- View raw HL7 payloads and parsed fields
-- Supports integration troubleshooting and partner issue analysis
+* Hiring managers
+* Technical leads
+* Interface teams
+* Implementation stakeholders
 
-This feature reflects real integration support scenarios:
-- Identifying dropped messages
-- Verifying transformation accuracy
-- Supporting vendor or client investigations
+---
 
+## How to Review This Project
 
-Detail viewer
+When reviewing this repository, focus on:
 
-🧪 Try It Yourself
-## What This Demo Demonstrates
+* How messages are classified and validated
+* How assumptions and failures are recorded
+* How traceability supports investigation
+* How the UI enables operational understanding
 
-✔ Understanding of healthcare data standards (HL7 v2, FHIR, X12)  
-✔ Ability to trace and troubleshoot data across systems  
-✔ Experience supporting integration engines (Mirth Connect)  
-✔ API-based integration and validation workflows  
-✔ Production-style logging and observability mindset  
+These are the daily concerns of an Integration Analyst.
 
-This project was intentionally designed to resemble real integration analyst work rather than a theoretical exercise.
+---
 
-No Mirth?
+## Summary
 
-Use the Playground:
-https://django-sam-healthcare.vercel.app/hl7/playground/
+This demo demonstrates **analyst-level healthcare integration thinking**:
+
+* Data ambiguity is expected, not avoided
+* Decisions are explicit and reviewable
+* Failures are traceable and explainable
+* Systems are built to support people, not just pipelines
+
+That is the core value of a Healthcare Integration Analyst.

@@ -74,6 +74,9 @@ class TraceLogListPage(APIView):
         input_type = request.query_params.get("input_type")
         status_q = request.query_params.get("status")
         has_errors = request.query_params.get("has_errors")
+        review_required = request.query_params.get("review_required")
+        business_impact = request.query_params.get("business_impact")
+
 
         if trace_id:
             qs = qs.filter(trace_id__icontains=trace_id)
@@ -85,6 +88,17 @@ class TraceLogListPage(APIView):
             qs = qs.filter(error_count__gt=0)
         if has_errors == "0":
             qs = qs.filter(error_count=0)
+        if business_impact in {"Low", "Medium", "High"}:
+            qs = qs.filter(meta__business_impact=business_impact)
+        if review_required == "1":
+            qs = qs.filter(status="FAILED") | qs.filter(error_count__gt=0) | qs.filter(steps__status__in=["WARN", "ERROR"])
+            qs = qs.distinct()
+
+        if review_required == "0":
+            qs = qs.exclude(status="FAILED").filter(error_count=0).exclude(steps__status__in=["WARN", "ERROR"])
+            qs = qs.distinct()
+
+
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request, view=self)
@@ -104,6 +118,7 @@ class TraceLogListPage(APIView):
             "input_types": ["HL7", "JSON", "EDI", "OTHER"],
             "statuses": ["RECEIVED", "PROCESSED", "FAILED"],
             "querystring": querystring,
+            "impact_levels": ["Low", "Medium", "High"],
         }
         return Response(context)
 

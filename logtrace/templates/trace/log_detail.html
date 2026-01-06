@@ -14,7 +14,7 @@
 </div>
 
 <!-- Summary -->
-<div class="card mb-3">
+<!-- <div class="card mb-3">
   <div class="card-body">
     <div class="row g-3">
       <div class="col-lg-8">
@@ -56,7 +56,43 @@
       </div>
     </div>
   </div>
+</div> -->
+<div class="mt-2 d-flex flex-wrap gap-2">
+  <span class="badge text-bg-light text-dark border">Message Type: {{ log.message_type }}</span>
+  <span class="badge text-bg-light text-dark border">Source System: {{ log.source_system }}</span>
+
+  <span class="badge text-bg-secondary">Input: {{ log.input_type }}</span>
+  <span class="badge text-bg-secondary">Output: {{ log.output_type|default:"-" }}</span>
+
+  {% if log.processing_status == "SUCCESS" %}
+    <span class="badge text-bg-success">SUCCESS</span>
+  {% elif log.processing_status == "SUCCESS_WITH_WARNINGS" %}
+    <span class="badge text-bg-warning text-dark">SUCCESS_WITH_WARNINGS</span>
+  {% else %}
+    <span class="badge text-bg-danger">{{ log.processing_status }}</span>
+  {% endif %}
+
+  {% if log.review_required %}
+    <span class="badge text-bg-warning text-dark">Review Required</span>
+  {% else %}
+    <span class="badge text-bg-success">No Review Needed</span>
+  {% endif %}
+
+  {% if log.business_impact == "High" %}
+    <span class="badge text-bg-danger">Impact: High</span>
+  {% elif log.business_impact == "Medium" %}
+    <span class="badge text-bg-warning text-dark">Impact: Medium</span>
+  {% else %}
+    <span class="badge text-bg-secondary">Impact: Low</span>
+  {% endif %}
+
+  {% if log.trace_available %}
+    <span class="badge text-bg-success">Trace Available</span>
+  {% else %}
+    <span class="badge text-bg-secondary">No Trace</span>
+  {% endif %}
 </div>
+
 
 <!-- Parsed Preview + Meta -->
 <div class="row g-3 mb-3">

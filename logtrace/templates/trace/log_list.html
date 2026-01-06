@@ -52,6 +52,26 @@
         </select>
       </div>
 
+      <div class="col-md-2">
+        <label class="form-label small text-muted" for="review_required">Review Required</label>
+        <select id="review_required" name="review_required" class="form-select">
+          <option value="">All</option>
+          <option value="1" {% if request.GET.review_required == "1" %}selected{% endif %}>Yes</option>
+          <option value="0" {% if request.GET.review_required == "0" %}selected{% endif %}>No</option>
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small text-muted" for="business_impact">Business Impact</label>
+        <select id="business_impact" name="business_impact" class="form-select">
+          <option value="">All</option>
+          {% for v in impact_levels %}
+            <option value="{{ v }}" {% if request.GET.business_impact == v %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+
       <div class="col-md-2 d-flex gap-2">
         <button class="btn btn-primary w-100" type="submit">Apply</button>
         <a class="btn btn-outline-secondary w-100" href="{% url 'trace-logs-page' %}">Reset</a>
@@ -66,20 +86,21 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Timestamp</th>
-            <th>Trace ID</th>
-            <th>Input</th>
-            <th>Status</th>
-            <th>Summary</th>
-            <th>Errors</th>
-            <th>Output</th>
+            <th>Received At</th>
+            <th>Message ID</th>
+            <th>Message Type</th>
+            <th>Source System</th>
+            <th>Processing Status</th>
+            <th>Review Required</th>
+            <th>Business Impact</th>
+            <th>Trace Available</th>
             <th class="text-end">Duration</th>
           </tr>
         </thead>
         <tbody>
           {% for log in logs %}
             <tr>
-              <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+              <!-- <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
               <td class="text-nowrap">
                 <a href="{% url 'trace-detail-page' trace_id=log.trace_id %}"
                    class="font-monospace text-decoration-none">
@@ -112,7 +133,58 @@
 
               <td class="text-end text-nowrap">
                 {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
+              </td> -->
+
+              <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+
+              <td class="font-monospace">
+                <a href="{% url 'trace-detail-page' trace_id=log.trace_id %}">{{ log.trace_id }}</a>
               </td>
+
+              <td><span class="badge text-bg-light text-dark border">{{ log.message_type }}</span></td>
+
+              <td><span class="badge text-bg-secondary">{{ log.source_system }}</span></td>
+
+              <td>
+                {% if log.processing_status == "SUCCESS" %}
+                  <span class="badge text-bg-success">SUCCESS</span>
+                {% elif log.processing_status == "SUCCESS_WITH_WARNINGS" %}
+                  <span class="badge text-bg-warning text-dark">SUCCESS_WITH_WARNINGS</span>
+                {% else %}
+                  <span class="badge text-bg-danger">{{ log.processing_status }}</span>
+                {% endif %}
+              </td>
+
+              <td>
+                {% if log.review_required %}
+                  <span class="badge text-bg-warning text-dark">Yes</span>
+                {% else %}
+                  <span class="badge text-bg-success">No</span>
+                {% endif %}
+              </td>
+
+              <td>
+                {% if log.business_impact == "High" %}
+                  <span class="badge text-bg-danger">High</span>
+                {% elif log.business_impact == "Medium" %}
+                  <span class="badge text-bg-warning text-dark">Medium</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Low</span>
+                {% endif %}
+              </td>
+
+              <td>
+                {% if log.trace_available %}
+                  <span class="badge text-bg-success">Yes</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">No</span>
+                {% endif %}
+              </td>
+
+              <td class="text-end text-nowrap">
+                {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
+              </td>
+
             </tr>
           {% empty %}
             <tr>

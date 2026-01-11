@@ -18,6 +18,14 @@ class HL7MessageLog(models.Model):
         SOURCE_SYSTEM = "SOURCE_SYSTEM", "SOURCE_SYSTEM"
         FACILITY_VARIANCE = "FACILITY_VARIANCE", "FACILITY_VARIANCE"
         UNKNOWN = "UNKNOWN", "UNKNOWN"
+    
+    # Add an index for the ordering/filter pattern:
+    class Meta:
+        indexes = [
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["processing_status", "-created_at"]),
+            models.Index(fields=["message_type", "-created_at"]),
+        ]
 
     created_at = models.DateTimeField(auto_now_add=True)
     source_context = models.JSONField(default=dict, blank=True)

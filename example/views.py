@@ -134,43 +134,28 @@ def index(request):
     # 这个名字就是 "index.html"
     return render(request, "index.html")
 
-
 class HL7TransformView(APIView):
-    # 只用 JSONRenderer，不用 BrowsableAPIRenderer
     renderer_classes = [JSONRenderer]
 
     def post(self, request, *args, **kwargs):
-        """
-        Accepts either:
-        1) JSON:  {"hl7_message": "<HL7 text>"}
-        2) Plain text: raw HL7 message in the body
-        """
-        body = request.body.decode("utf-8", errors="ignore").strip()
-
-        hl7_message = ""
-
-
-        # Try JSON first
+        # JSON requests: use DRF parser (request.data) and DO NOT touch request.body
         if request.content_type and "application/json" in request.content_type:
-            try:
-                data = json.loads(body)
-                hl7_message = data.get("hl7_message", "")
-
-                if not hl7_message.startswith("MSH"):
-                    return Response({"error": "Invalid HL7 message"}, status=400)  
-                if "ADT" not in hl7_message:
-                    # warn but still process
-                    pass
-                
-            except ValueError:
-                # Not valid JSON, fall back to raw body
-                hl7_message = body
+            data = request.data or {}
+            hl7_message = (data.get("hl7_message") or data.get("hl7") or "").strip()
         else:
-            # Non-JSON: treat the whole body as HL7 text
-            hl7_message = body
+            # Non-JSON: use raw body and DO NOT touch request.data
+            hl7_message = request.body.decode("utf-8", errors="ignore").strip()
+
+        if not hl7_message:
+            return Response({"error": "Missing hl7_message"}, status=400)
+
+        # optional quick validation
+        if not hl7_message.startswith("MSH"):
+            return Response({"error": "Invalid HL7 message"}, status=400)
 
         result = hl7_to_all(hl7_message)
         return Response(result, status=status.HTTP_200_OK)
+
 
     
 class MirthHL7View(APIView):

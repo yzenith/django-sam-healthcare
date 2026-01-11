@@ -3,6 +3,7 @@
 {% block title %}HL7 v2 → FHIR → X12 837 Playground{% endblock %}
 
 {% block content %}
+{% csrf_token %}
   <div class="row mb-4">
     <div class="col-lg-10">
       <h1 class="mb-3">HL7 v2 → FHIR → X12 837 Playground</h1>
@@ -96,6 +97,49 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
 
 {% block extra_js %}
 <script>
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + "=")) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  $(function () {
+    // Ensure every non-GET AJAX includes CSRF header
+    $.ajaxSetup({
+      beforeSend: function (xhr, settings) {
+        const isSafeMethod = /^(GET|HEAD|OPTIONS|TRACE)$/.test(settings.type);
+        if (!isSafeMethod) {
+          xhr.setRequestHeader("X-CSRFToken", getCookie("csrftoken"));
+        }
+      }
+    });
+
+    $("#btn-transform").on("click", function () {
+      const hl7 = $("#hl7-input").val();
+
+      $.ajax({
+        url: "{% url 'hl7-transform' %}",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({ hl7_message: hl7 }),
+        success: function (data) { /* existing code */ },
+        error: function (xhr) {
+          alert("Error: " + (xhr.responseText || xhr.statusText));
+        }
+      });
+    });
+  });
+
+
   $(function () {
     $("#btn-transform").on("click", function () {
       const hl7 = $("#hl7-input").val();

@@ -22,74 +22,6 @@
   </div>
 </div>
 
-<div class="row g-3">
-  <!-- Metadata card -->
-  <div class="col-12">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Message Metadata</h5>
-        <dl class="row mb-0 small">
-          <dt class="col-sm-3">Received at</dt>
-          <dd class="col-sm-9">{{ log.created_at|date:"Y-m-d H:i:s" }}</dd>
-
-          <dt class="col-sm-3">Source system</dt>
-          <dd class="col-sm-9">{{ log.source_system|default:"(unknown)" }}</dd>
-
-          <dt class="col-sm-3">Message profile</dt>
-          <dd class="col-sm-9">{{ log.message_profile|default:"—" }}</dd>
-
-          <dt class="col-sm-3">Sending app/facility</dt>
-          <dd class="col-sm-9">
-            {{ log.source_context.sending_application|default:"—" }}
-            /
-            {{ log.source_context.sending_facility|default:"—" }}
-          </dd>
-
-          <dt class="col-sm-3">EMR context</dt>
-          <dd class="col-sm-9">
-            {{ log.source_context.system_type|default:"—" }}
-            {{ log.source_context.vendor|default:"" }}
-            ({{ log.source_context.facility_type|default:"" }})
-          </dd>
-
-          <dt class="col-sm-3">Trigger</dt>
-          <dd class="col-sm-9">
-            {{ log.trigger_event.code|default:"—" }} —
-            {{ log.trigger_event.description|default:"" }}
-          </dd>
-
-          <dt class="col-sm-3">Business reason</dt>
-          <dd class="col-sm-9">
-            {{ log.trigger_event.business_reason|default:"—" }}
-          </dd>               
-
-
-          <dt class="col-sm-3">Message type</dt>
-          <dd class="col-sm-9">{{ log.message_type }}</dd>
-
-          <dt class="col-sm-3">Patient ID</dt>
-          <dd class="col-sm-9">{{ log.patient_id|default:"—" }}</dd>
-
-          <dt class="col-sm-3">Encounter?</dt>
-          <dd class="col-sm-9">
-            {% if log.encounter_present %}
-              <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
-            {% else %}
-              <span class="badge bg-secondary-subtle text-secondary-emphasis">No</span>
-            {% endif %}
-          </dd>
-
-          <dt class="col-sm-3">837 length</dt>
-          <dd class="col-sm-9">
-            {% if log.x12_length %}
-              {{ log.x12_length }} chars
-            {% else %}
-              —
-            {% endif %}
-          </dd>
-        </dl>
-      </div>
-    </div>
   </div>
 
   <!-- Raw HL7 -->
@@ -150,6 +82,8 @@
     </div>
   </div>
 
+  
+
   {% if log.message_type == "ORU^R01" %}
     <!-- DiagnosticReport -->
     <div class="col-12">
@@ -175,6 +109,31 @@
       </div>
     </div>
   {% endif %}
+
+  <!-- X12 835 -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Generated X12 835</h5>
+        <pre class="bg-light border rounded p-3 small mb-0">
+  {{ x12_835|default:"(No X12 835 generated for this message.)" }}
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Claim Reconciliation -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Claim Reconciliation</h5>
+        <pre class="bg-light border rounded p-3 small mb-0">
+  {{ claim_reconciliation_json|default:"(No reconciliation available.)" }}
+        </pre>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 

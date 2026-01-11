@@ -99,6 +99,9 @@ def mirth_message_detail(request, pk):
     patient = transform_result.get("patient")
     encounter = transform_result.get("encounter")
     x12_837 = transform_result.get("x12_837")
+    x12_835 = transform_result.get("x12_835")
+    claim_reconciliation = transform_result.get("claim_reconciliation")
+
 
 
     context = {
@@ -106,6 +109,9 @@ def mirth_message_detail(request, pk):
         "patient": patient,
         "encounter": encounter,
         "x12_837": x12_837,
+        "x12_835": x12_835,
+        "claim_reconciliation_json": json.dumps(claim_reconciliation, indent=2) if claim_reconciliation else None,
+
     }
 
     if log.message_type == "ORU^R01":

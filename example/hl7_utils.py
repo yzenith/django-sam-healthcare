@@ -90,8 +90,25 @@ def hl7_to_all(hl7_text: str):
 
         encounter = hl7_to_fhir_encounter(segments, patient_id=patient_id)
         x12_837 = None
+        # if patient and encounter:
+        #     x12_837 = fhir_to_837_claim(patient, encounter)
+
+        # return {
+        #     "message_type": msg_type,
+        #     "raw_hl7": hl7_text,
+        #     "patient": patient,
+        #     "encounter": encounter,
+        #     "x12_837": x12_837,
+        # }
+
+        x12_835 = None
+        claim_reconciliation = None
+
         if patient and encounter:
             x12_837 = fhir_to_837_claim(patient, encounter)
+            # demo: choose "paid" by default; later you can toggle by query param or payload field
+            x12_835 = generate_835_from_837(x12_837, outcome="paid")
+            claim_reconciliation = reconcile_837_835(x12_837, x12_835)
 
         return {
             "message_type": msg_type,
@@ -99,7 +116,10 @@ def hl7_to_all(hl7_text: str):
             "patient": patient,
             "encounter": encounter,
             "x12_837": x12_837,
+            "x12_835": x12_835,
+            "claim_reconciliation": claim_reconciliation,
         }
+
 
     # --- ORU messages: reuse your existing ORU converter ---
     if msg_type.startswith("ORU"):
@@ -607,3 +627,115 @@ def hl7_oru_to_fhir(hl7_text: str) -> dict:
         "report": diagnostic_report,
         "observations": fhir_observations,
     }
+
+def parse_837_basic(x12_837: str) -> dict:
+    """
+    Extract minimal claim info from the CLM segment.
+    Returns: {"claim_id": "...", "billed_total": 150.0}
+    """
+    if not x12_837:
+        return {}
+
+    # Split by segment terminator
+    segments = [s.strip() for s in x12_837.replace("\n", "").split("~") if s.strip()]
+    clm = next((s for s in segments if s.startswith("CLM*")), None)
+    if not clm:
+        return {}
+
+    parts = clm.split("*")
+    # CLM*{claim_id}*{total}***...
+    claim_id = parts[1] if len(parts) > 1 else ""
+    billed_total = float(parts[2]) if len(parts) > 2 and parts[2] else 0.0
+
+    return {"claim_id": claim_id, "billed_total": billed_total}
+
+
+def generate_835_from_837(x12_837: str, outcome: str = "paid") -> str:
+    """
+    Create a simplified 835 ERA from an 837 (demo-quality but structurally realistic).
+
+    outcome:
+      - "paid": partial payment + patient responsibility
+      - "denied": denial with adjustment reason
+    """
+    info = parse_837_basic(x12_837)
+    claim_id = info.get("claim_id", "UNKNOWN")
+    billed_total = float(info.get("billed_total", 0.0))
+
+    if outcome not in ("paid", "denied"):
+        outcome = "paid"
+
+    if outcome == "paid":
+        paid = round(billed_total * 0.8, 2)
+        patient_resp = round(billed_total - paid, 2)
+        clp_status = "1"  # processed as primary, paid
+        cas = f"CAS*PR*1*{patient_resp:.2f}~" if patient_resp > 0 else ""
+    else:
+        paid = 0.0
+        patient_resp = 0.0
+        clp_status = "4"  # denied
+        # CO-45 is a common demo denial/adjustment reason used in examples
+        cas = f"CAS*CO*45*{billed_total:.2f}~"
+
+    segments = []
+    segments.append("ISA*00*          *00*          *ZZ*SENDERID      *ZZ*RECEIVERID    *250101*1200*^*00501*000000905*0*T*:~")
+    segments.append("GS*HP*SENDERID*RECEIVERID*20250101*1200*1*X*005010X221A1~")
+    segments.append("ST*835*0001~")
+    segments.append("BPR*I*0*C*CHK************20250101~")
+    segments.append("TRN*1*12345*9876543210~")
+    segments.append("N1*PR*DEMO PAYER*PI*99999~")
+    segments.append("N1*PE*GOOD HEALTH CLINIC*XX*1234567893~")
+
+    # CLP*{patient_control_number}*{status}*{total}*{paid}*{patient_resp}*MC*{payer_claim_control}*11~
+    segments.append(f"CLP*{claim_id}*{clp_status}*{billed_total:.2f}*{paid:.2f}*{patient_resp:.2f}*MC*PCN123*11~")
+    if cas:
+        segments.append(cas)
+
+    segments.append("SE*9*0001~")
+    segments.append("GE*1*1~")
+    segments.append("IEA*1*000000905~")
+
+    return "\n".join(segments)
+
+
+def reconcile_837_835(x12_837: str, x12_835: str) -> dict:
+    """
+    Produce a reconciliation summary: billed vs paid vs patient responsibility.
+    """
+    s_info = parse_837_basic(x12_837)
+    billed_total = float(s_info.get("billed_total", 0.0))
+    claim_id = s_info.get("claim_id", "")
+
+    paid = 0.0
+    patient_resp = 0.0
+    status = "unknown"
+    adjustments = []
+
+    if x12_835:
+        segments = [s.strip() for s in x12_835.replace("\n", "").split("~") if s.strip()]
+        clp = next((s for s in segments if s.startswith("CLP*")), None)
+        if clp:
+            parts = clp.split("*")
+            # CLP*claimId*status*billed*paid*patientResp*...
+            status_code = parts[2] if len(parts) > 2 else ""
+            billed_from_835 = float(parts[3]) if len(parts) > 3 and parts[3] else billed_total
+            paid = float(parts[4]) if len(parts) > 4 and parts[4] else 0.0
+            patient_resp = float(parts[5]) if len(parts) > 5 and parts[5] else 0.0
+            billed_total = billed_from_835
+
+            status = "paid" if status_code == "1" else ("denied" if status_code == "4" else "other")
+
+        # collect CAS adjustments
+        for cas in [s for s in segments if s.startswith("CAS*")]:
+            adjustments.append(cas)
+
+    return {
+        "claim_id": claim_id,
+        "status": status,
+        "billed_total": round(billed_total, 2),
+        "paid_amount": round(paid, 2),
+        "patient_responsibility": round(patient_resp, 2),
+        "adjustments": adjustments,
+        "balance_due_to_provider": round(max(billed_total - paid - patient_resp, 0.0), 2),
+    }
+

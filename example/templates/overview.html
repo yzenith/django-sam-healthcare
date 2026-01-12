@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}System Overview{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">System Overview (2–3 minute review)</h1>
+
+<p class="text-muted">
+This page explains what the demo covers and how to evaluate it quickly.
+</p>
+
+<hr>
+
+<h3>What this is</h3>
+<ul>
+  <li>HL7 v2 ingestion → validation → normalization</li>
+  <li>FHIR-style resource modeling (Patient, Encounter, Observation)</li>
+  <li>X12 claim lifecycle: 837 generation → 835 simulation → reconciliation</li>
+  <li>CSV migration utility: Patients import with validation, dedupe, upsert, reconciliation, and rejects download</li>
+</ul>
+
+<h3>Fast evaluation path</h3>
+<ol>
+  <li><strong>HL7 Playground</strong> → paste ADT/ORU → Transform</li>
+  <li><strong>Trace Logs</strong> → review step-by-step processing</li>
+  <li><strong>CSV Import</strong> → upload sample → review reconciliation</li>
+</ol>
+
+<h3>What this demo intentionally focuses on</h3>
+<ul>
+  <li>Data integrity and auditability</li>
+  <li>Operational error handling</li>
+  <li>Reconciliation and migration workflows</li>
+</ul>
+
+<h3>What is intentionally simplified</h3>
+<ul>
+  <li>Terminology services and full code systems</li>
+  <li>PHI security layers (demo uses synthetic data)</li>
+  <li>Full payer rule engines</li>
+</ul>
+{% endblock %}

@@ -38,6 +38,15 @@
              href="{% url 'home' %}">Home</a>
         </li>
 
+        <!-- Overview -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'overview' %}active{% endif %}"
+            href="{% url 'overview' %}">
+            Overview
+          </a>
+        </li>
+
+
         <!-- HL7 Playground -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'hl7-playground' %}active{% endif %}"

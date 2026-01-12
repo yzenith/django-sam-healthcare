@@ -1,5 +1,50 @@
 # Healthcare Integration Analyst Demo
 
+## Recruiter / Hiring Manager Quick Review (2–3 minutes)
+
+### What this is
+A portfolio demo that mirrors real healthcare integration work:
+- **HL7 v2 ingestion** → validation → mapping into **FHIR-like structures**
+- **X12 claim lifecycle**: generates a simplified **837** and simulates an **835** response + reconciliation
+- **Data migration utility**: **Patients CSV import** with validation, dedupe, upsert, and reconciliation + rejects download
+
+This is intentionally **not a full spec implementation**. It’s a workflow-focused demo showing how I reason about messy integration data and make behavior traceable and auditable.
+
+---
+
+### The fastest way to evaluate it (click path)
+
+1) **HL7 Playground**
+- Paste an ADT/ORU message
+- Click **Transform HL7**
+- Review: parsed fields, generated outputs, and validation behavior  
+Path: `/hl7/playground/`
+
+2) **Trace Logs**
+- Open a trace record
+- See: step-by-step processing timeline, validations, decisions, and errors  
+Path: `/trace/logs/`
+
+3) **CSV Import (Patients)**
+- Upload a sample CSV
+- See: dedupe, rejects, inserts vs updates, reconciliation summary
+- Download rejects CSV for operational follow-up  
+Path: `/import/patients/`
+
+---
+
+### What to look for (signal of real-world readiness)
+- **Validation & error taxonomy**: missing fields, invalid DOB, duplicates, warning vs reject behavior
+- **Reconciliation**: source rows → deduped → inserted/updated → rejected + sample rejects
+- **Auditability**: Trace IDs and step-by-step outcomes that support post-incident investigation
+
+---
+
+### Notes on scope
+- Uses synthetic data only (no PHI).
+- Simplifies certain standards detail (by design) to keep focus on **workflow reasoning, integrity checks, and operational troubleshooting**.
+
+
 ## Purpose of This Demo
 
 This project demonstrates **how a Healthcare Integration Analyst thinks, evaluates, and manages data exchange**, rather than how an Integration Engineer builds large-scale infrastructure.
@@ -63,6 +108,12 @@ This demo is intentionally designed around **integration analyst responsibilitie
 * Provides a UI to inspect message history
 * Allows analysts to understand *what happened* and *why*
 * Supports real-world troubleshooting scenarios
+
+### 6. Migration Utility (CSV Import + Reconciliation)
+* Imports Patients CSV with schema validation and normalization
+* Dedupes within-file, upserts into database
+* Produces reconciliation report and downloadable rejects CSV
+
 
 ---
 

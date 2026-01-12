@@ -1,5 +1,7 @@
 # example/urls.py
 from django import views
+from django.views.generic import TemplateView
+
 from django.urls import path
 from example.views import hl7_playground, HL7TransformView, MirthHL7View, mirth_message_detail, mirth_messages, home, patient_import_detail, patient_import_page, patient_import_rejects_csv
 
@@ -15,6 +17,8 @@ urlpatterns = [
     path("import/patients/", patient_import_page, name="patient-import"),
     path("import/patients/<int:pk>/", patient_import_detail, name="patient-import-detail"),
     path("import/patients/<int:pk>/rejects.csv", patient_import_rejects_csv, name="patient-import-rejects-csv"),
+    path("overview/", TemplateView.as_view(template_name="overview.html"), name="overview"),
+
 
 
 ]

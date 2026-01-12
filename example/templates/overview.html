@@ -10,6 +10,7 @@ This page explains what the demo covers and how to evaluate it quickly.
 
 <hr>
 
+<!-- What this is -->
 <h3>What this is</h3>
 <ul>
   <li>HL7 v2 ingestion → validation → normalization</li>
@@ -18,6 +19,7 @@ This page explains what the demo covers and how to evaluate it quickly.
   <li>CSV migration utility: Patients import with validation, dedupe, upsert, reconciliation, and rejects download</li>
 </ul>
 
+<!-- Fast evaluation path -->
 <h3>Fast evaluation path</h3>
 <ol>
   <li><strong>HL7 Playground</strong> → paste ADT/ORU → Transform</li>
@@ -25,6 +27,7 @@ This page explains what the demo covers and how to evaluate it quickly.
   <li><strong>CSV Import</strong> → upload sample → review reconciliation</li>
 </ol>
 
+<!-- What this demo intentionally focuses on -->
 <h3>What this demo intentionally focuses on</h3>
 <ul>
   <li>Data integrity and auditability</li>
@@ -32,10 +35,119 @@ This page explains what the demo covers and how to evaluate it quickly.
   <li>Reconciliation and migration workflows</li>
 </ul>
 
+<!-- What is intentionally simplified -->
 <h3>What is intentionally simplified</h3>
 <ul>
   <li>Terminology services and full code systems</li>
   <li>PHI security layers (demo uses synthetic data)</li>
   <li>Full payer rule engines</li>
 </ul>
+
+<!-- Design Decisions -->
+<section class="mt-5">
+  <h2 class="mb-3">Design Decisions</h2>
+  <p class="text-muted">
+    These decisions are intentional and reflect real-world integration and migration workflows.
+  </p>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h4 class="card-title mb-2">1) Why HL7 v2 → FHIR normalization</h4>
+      <p>
+        HL7 v2 messages are <strong>event-driven and loosely structured</strong>. Two systems can both be HL7-compliant
+        while encoding the same clinical reality differently. In real integrations, this makes downstream logic brittle
+        if it operates directly on HL7 segments.
+      </p>
+      <p class="mb-2">
+        This demo normalizes HL7 v2 into <strong>FHIR-style resources</strong> (Patient, Encounter, Observation, DiagnosticReport) to:
+      </p>
+      <ul class="mb-0">
+        <li>establish a stable internal data model</li>
+        <li>decouple downstream processing from HL7 segment variability</li>
+        <li>make validation and reconciliation deterministic</li>
+      </ul>
+      <p class="mt-2 mb-0">
+        This mirrors how many modern integration platforms treat HL7 v2: as an ingress format, not a system-of-record schema.
+      </p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h4 class="card-title mb-2">2) Why reconciliation is mandatory (not optional)</h4>
+      <p>
+        In healthcare integrations, <strong>data movement without reconciliation is operationally unsafe</strong>.
+      </p>
+      <p class="mb-2">Examples:</p>
+      <ul>
+        <li>Claims submitted (837) do not guarantee payment</li>
+        <li>Payments (835) may be partial, denied, or adjusted</li>
+        <li>Data migrations must prove completeness and integrity</li>
+      </ul>
+      <p class="mb-2">
+        This demo treats reconciliation as a <strong>first-class outcome</strong>, not a side effect:
+      </p>
+      <ul class="mb-0">
+        <li>837 → 835 financial reconciliation shows billed vs paid vs patient responsibility</li>
+        <li>CSV migration reconciliation shows source rows → deduped → inserted/updated → rejected</li>
+      </ul>
+      <p class="mt-2 mb-0">
+        The goal is not perfect data—it is <strong>provable outcomes</strong>.
+      </p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h4 class="card-title mb-2">3) Why rejects are first-class outputs</h4>
+      <p>
+        Rejected data is not failure—it is <strong>actionable signal</strong>.
+      </p>
+      <p class="mb-2">
+        In real implementations, missing identifiers, invalid dates, and duplicates must be surfaced clearly
+        so downstream teams can resolve them.
+      </p>
+      <p class="mb-2">This demo explicitly:</p>
+      <ul class="mb-0">
+        <li>records reject reasons</li>
+        <li>samples reject rows</li>
+        <li>allows rejects to be downloaded as CSV</li>
+      </ul>
+      <p class="mt-2 mb-0">
+        This mirrors real-world migration and interface workflows where rejects are triaged, corrected, and replayed.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h4 class="card-title mb-2">4) Why some things are intentionally simplified</h4>
+      <p>
+        This demo prioritizes <strong>workflow reasoning over specification completeness</strong>.
+      </p>
+      <p class="mb-2">Intentionally simplified:</p>
+      <ul>
+        <li>coding systems (ICD/CPT/LOINC)</li>
+        <li>terminology services</li>
+        <li>payer-specific rule engines</li>
+        <li>PHI security layers (synthetic data only)</li>
+      </ul>
+      <p class="mb-2">
+        These choices keep focus on:
+      </p>
+      <ul class="mb-0">
+        <li>integration flow</li>
+        <li>validation logic</li>
+        <li>auditability</li>
+        <li>reconciliation patterns</li>
+      </ul>
+      <p class="mt-2 mb-0">
+        The architecture is designed so these components could be extended without reworking the pipeline.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+
 {% endblock %}

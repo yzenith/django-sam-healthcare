@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Patient Import Run {{ run.id }}{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">Patient Import Run #{{ run.id }}</h1>
+
+<div class="mb-3">
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'patient-import' %}">Back to Import</a>
+  <a class="btn btn-outline-primary btn-sm"
+   href="{% url 'patient-import-rejects-csv' run.id %}">
+  Download rejects CSV
+</a>
+
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Summary</h5>
+    <div class="row">
+      <div class="col-md-6">
+        <ul class="list-unstyled mb-0">
+          <li><strong>Status:</strong> {{ run.status }}</li>
+          <li><strong>Filename:</strong> {{ run.filename }}</li>
+          <li><strong>Created:</strong> {{ run.created_at }}</li>
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <ul class="list-unstyled mb-0">
+          <li><strong>Source Rows:</strong> {{ run.total_rows }}</li>
+          <li><strong>Inserted:</strong> {{ run.inserted }}</li>
+          <li><strong>Updated:</strong> {{ run.updated }}</li>
+          <li><strong>Rejected:</strong> {{ run.rejected }}</li>
+          <li><strong>Duplicates in file:</strong> {{ run.duplicates_in_file }}</li>
+        </ul>
+      </div>
+    </div>
+
+    {% if run.error_message %}
+      <div class="alert alert-danger mt-3 mb-0">
+        <strong>Error:</strong> {{ run.error_message }}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Reconciliation</h5>
+    <pre class="bg-light border rounded p-3 small mb-0">{{ run.reconciliation|default:"{}" }}</pre>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Reject Samples (first 50)</h5>
+    <pre class="bg-light border rounded p-3 small mb-0">{{ run.reject_samples|default:"[]" }}</pre>
+  </div>
+</div>
+{% endblock %}

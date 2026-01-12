@@ -1,15 +1,19 @@
 import json
 import os
 import uuid
+import csv
+import io
+from django.http import HttpResponseForbidden, HttpResponse
 
-from django.http import HttpResponseForbidden
 import jwt
 from datetime import datetime
+from django.utils.timezone import now
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from django.shortcuts import get_object_or_404, render 
+from django.shortcuts import get_object_or_404, render, redirect
 from .hl7_utils import (
     hl7_to_all,
     extract_hl7_summary,
@@ -20,7 +24,7 @@ from .hl7_utils import (
     hl7_oru_to_fhir,
 )
 
-from .models import HL7MessageLog
+from .models import HL7MessageLog, PatientRecord, PatientImportRun
 
 # JWT settings – use env vars in real deployment
 MIRTH_JWT_SECRET = os.environ.get("MIRTH_JWT_SECRET", "MIRTH_DEMO_SECRET_KEY")
@@ -28,6 +32,209 @@ MIRTH_JWT_ALG = "HS256"
 MIRTH_JWT_AUD = "mirth-connector"
 MIRTH_JWT_ISS = "django-sam-healthcare"
 
+# helpers for patient import
+def _norm_str(v):
+    return (v or "").strip()
+
+# parse date of birth from various formats
+def _parse_dob(v):
+    v = _norm_str(v)
+    if not v:
+        return None
+    # Accept YYYY-MM-DD or YYYYMMDD
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            return datetime.strptime(v, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+# normalize US state to 2-letter code
+def _norm_state(v):
+    v = _norm_str(v).upper()
+    return v[:2]
+
+# ⬇⬇⬇ add patient import rejects CSV view
+def patient_import_rejects_csv(request, pk: int):
+    run = get_object_or_404(PatientImportRun, pk=pk)
+
+    # reject_samples is a list of {"rownum": idx, "reason": "...", "row": {original csv row dict}}
+    samples = run.reject_samples or []
+
+    # Collect original CSV fieldnames seen in reject samples
+    fieldnames = set()
+    for item in samples:
+        row = item.get("row") or {}
+        fieldnames.update(row.keys())
+
+    # Stable ordering: standard columns first, then the rest
+    standard = ["mrn", "first_name", "last_name", "dob", "gender", "address1", "city", "state", "zip_code", "zip"]
+    ordered_fields = [f for f in standard if f in fieldnames] + sorted([f for f in fieldnames if f not in standard])
+
+    header = ["rownum", "reason"] + ordered_fields
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="patient_import_{run.id}_rejects.csv"'
+
+    writer = csv.DictWriter(resp, fieldnames=header, extrasaction="ignore")
+    writer.writeheader()
+
+    for item in samples:
+        out = {"rownum": item.get("rownum", ""), "reason": item.get("reason", "")}
+        row = item.get("row") or {}
+        for k in ordered_fields:
+            out[k] = row.get(k, "")
+        writer.writerow(out)
+
+    return resp
+
+
+# ⬇⬇⬇ add patient import views
+def patient_import_page(request):
+    """
+    GET: show upload + recent runs
+    POST: process CSV upload (multipart/form-data)
+    """
+    if request.method == "GET":
+        runs = PatientImportRun.objects.order_by("-created_at")[:20]
+        return render(request, "patient_import.html", {"runs": runs})
+
+    # POST
+    upload = request.FILES.get("csv_file")
+    if not upload:
+        runs = PatientImportRun.objects.order_by("-created_at")[:20]
+        return render(request, "patient_import.html", {
+            "runs": runs,
+            "error": "Please choose a CSV file.",
+        })
+
+    run = PatientImportRun.objects.create(filename=upload.name, status=PatientImportRun.Status.RECEIVED)
+
+    try:
+        raw = upload.read().decode("utf-8", errors="ignore")
+        f = io.StringIO(raw)
+        reader = csv.DictReader(f)
+
+        # Required columns (minimal)
+        required = {"mrn", "first_name", "last_name", "dob"}
+        headers = set([h.strip() for h in (reader.fieldnames or []) if h])
+        missing = required - headers
+        if missing:
+            run.status = PatientImportRun.Status.FAILED
+            run.error_message = f"Missing required columns: {sorted(list(missing))}"
+            run.save()
+            return redirect("patient-import-detail", pk=run.pk)
+
+        seen = set()
+        rows = []
+        reject_samples = []
+        duplicates = 0
+        total = 0
+
+        for idx, row in enumerate(reader, start=2):  # header is line 1
+            total += 1
+
+            mrn = _norm_str(row.get("mrn"))
+            if not mrn:
+                if len(reject_samples) < 50:
+                    reject_samples.append({"rownum": idx, "reason": "Missing mrn", "row": row})
+                continue
+
+            if mrn in seen:
+                duplicates += 1
+                continue
+            seen.add(mrn)
+
+            dob = _parse_dob(row.get("dob"))
+            if row.get("dob") and dob is None:
+                if len(reject_samples) < 50:
+                    reject_samples.append({"rownum": idx, "reason": "Invalid dob format", "row": row})
+                continue
+
+            rows.append({
+                "mrn": mrn,
+                "first_name": _norm_str(row.get("first_name")),
+                "last_name": _norm_str(row.get("last_name")),
+                "dob": dob,
+                "gender": _norm_str(row.get("gender")).upper(),
+                "address1": _norm_str(row.get("address1")),
+                "city": _norm_str(row.get("city")),
+                "state": _norm_state(row.get("state")),
+                "zip_code": _norm_str(row.get("zip_code") or row.get("zip")),
+            })
+
+        # Upsert in bulk
+        mrns = [r["mrn"] for r in rows]
+        existing = PatientRecord.objects.filter(mrn__in=mrns)
+        existing_by_mrn = {p.mrn: p for p in existing}
+
+        to_create = []
+        to_update = []
+
+        for r in rows:
+            obj = existing_by_mrn.get(r["mrn"])
+            if not obj:
+                to_create.append(PatientRecord(**r))
+            else:
+                # update fields
+                obj.first_name = r["first_name"]
+                obj.last_name = r["last_name"]
+                obj.dob = r["dob"]
+                obj.gender = r["gender"]
+                obj.address1 = r["address1"]
+                obj.city = r["city"]
+                obj.state = r["state"]
+                obj.zip_code = r["zip_code"]
+                to_update.append(obj)
+
+        with transaction.atomic():
+            if to_create:
+                PatientRecord.objects.bulk_create(to_create, batch_size=500)
+            if to_update:
+                PatientRecord.objects.bulk_update(
+                    to_update,
+                    ["first_name", "last_name", "dob", "gender", "address1", "city", "state", "zip_code"],
+                    batch_size=500
+                )
+
+        inserted = len(to_create)
+        updated = len(to_update)
+        rejected = (total - duplicates) - (inserted + updated)
+
+        run.total_rows = total
+        run.inserted = inserted
+        run.updated = updated
+        run.duplicates_in_file = duplicates
+        run.rejected = rejected
+        run.reject_samples = reject_samples
+        run.status = PatientImportRun.Status.COMPLETED
+        run.reconciliation = {
+            "source_rows": total,
+            "deduped_rows": total - duplicates,
+            "inserted": inserted,
+            "updated": updated,
+            "rejected": rejected,
+            "duplicates_in_file": duplicates,
+            "reject_sample_count": len(reject_samples),
+            "timestamp": now().isoformat(),
+        }
+        run.save()
+
+        return redirect("patient-import-detail", pk=run.pk)
+
+    except Exception as e:
+        run.status = PatientImportRun.Status.FAILED
+        run.error_message = str(e)
+        run.save()
+        return redirect("patient-import-detail", pk=run.pk)
+
+# ⬇⬇⬇ add patient import detail view
+def patient_import_detail(request, pk: int):
+    run = get_object_or_404(PatientImportRun, pk=pk)
+    return render(request, "patient_import_detail.html", {"run": run})
+
+
+# ⬇⬇⬇ add Mirth JWT validation
 def validate_mirth_jwt(request):
     """
     Extract and validate a Bearer JWT from the Authorization header.

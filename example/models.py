@@ -51,3 +51,48 @@ class HL7MessageLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at} {self.message_type} {self.patient_id}"
+    
+class PatientRecord(models.Model):
+    mrn = models.CharField(max_length=64, unique=True, db_index=True)
+
+    first_name = models.CharField(max_length=80, blank=True, default="")
+    last_name = models.CharField(max_length=80, blank=True, default="")
+    dob = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=16, blank=True, default="")
+
+    address1 = models.CharField(max_length=120, blank=True, default="")
+    city = models.CharField(max_length=80, blank=True, default="")
+    state = models.CharField(max_length=2, blank=True, default="")
+    zip_code = models.CharField(max_length=12, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.mrn} {self.last_name}, {self.first_name}"
+
+
+class PatientImportRun(models.Model):
+    class Status(models.TextChoices):
+        RECEIVED = "RECEIVED", "RECEIVED"
+        COMPLETED = "COMPLETED", "COMPLETED"
+        FAILED = "FAILED", "FAILED"
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    filename = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
+
+    total_rows = models.IntegerField(default=0)
+    inserted = models.IntegerField(default=0)
+    updated = models.IntegerField(default=0)
+    rejected = models.IntegerField(default=0)
+    duplicates_in_file = models.IntegerField(default=0)
+
+    # Store a small sample for demo (avoid huge payloads)
+    reject_samples = models.JSONField(default=list, blank=True)  # list of {"rownum":..,"reason":..,"row":..}
+    reconciliation = models.JSONField(default=dict, blank=True)  # summary payload
+
+    error_message = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return f"PatientImportRun {self.id} {self.status} {self.created_at}"

@@ -32,25 +32,37 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
 
+        <!-- Home -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
              href="{% url 'home' %}">Home</a>
         </li>
 
+        <!-- HL7 Playground -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'hl7-playground' %}active{% endif %}"
              href="{% url 'hl7-playground' %}">HL7 Playground</a>
         </li>
 
+        <!-- CSV Import -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'patient-import' %}active{% endif %}"
+            href="{% url 'patient-import' %}">CSV Import</a>
+        </li>
+
+        <!-- Mirth Live Feed -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'mirth-messages' %}active{% endif %}"
              href="{% url 'mirth-messages' %}">Mirth Live Feed</a>
         </li>
 
+        <!-- Trace Logs -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'trace-logs-page' %}active{% endif %}"
              href="{% url 'trace-logs-page' %}">Trace Logs</a>
         </li>
+
+        <!-- Trace Ingest -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'trace-ingest-page' %}active{% endif %}"
             href="{% url 'trace-ingest-page' %}">Trace Ingest</a>

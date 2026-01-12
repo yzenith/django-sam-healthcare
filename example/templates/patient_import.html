@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Patient CSV Import{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">Patient CSV Import</h1>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Upload CSV</h5>
+    <p class="text-muted small mb-2">
+      Required columns: <code>mrn, first_name, last_name, dob</code>. Optional: gender, address1, city, state, zip_code.
+    </p>
+
+    {% if error %}
+      <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="mb-3">
+        <input class="form-control" type="file" name="csv_file" accept=".csv" required>
+      </div>
+      <button class="btn btn-primary" type="submit">Import Patients</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Recent Runs</h5>
+
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Time</th>
+          <th>File</th>
+          <th>Status</th>
+          <th>Source Rows</th>
+          <th>Inserted</th>
+          <th>Updated</th>
+          <th>Rejected</th>
+          <th>Dupes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td><a href="{% url 'patient-import-detail' r.id %}">{{ r.id }}</a></td>
+          <td>{{ r.created_at }}</td>
+          <td>{{ r.filename }}</td>
+          <td>{{ r.status }}</td>
+          <td>{{ r.total_rows }}</td>
+          <td>{{ r.inserted }}</td>
+          <td>{{ r.updated }}</td>
+          <td>{{ r.rejected }}</td>
+          <td>{{ r.duplicates_in_file }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-muted">No import runs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

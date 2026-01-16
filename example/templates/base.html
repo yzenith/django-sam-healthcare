@@ -82,6 +82,28 @@
   </div>
 </nav>
 
+<!-- Integration Flow Bar -->
+<div class="container mb-3">
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'hl7-playground' %}">HL7 Intake</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'mirth-messages' %}">Interface Engine</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Ingest</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-logs-page' %}">Trace Logs</a>
+    <a class="btn btn-sm btn-outline-danger" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'patient-import' %}">CSV Reconcile</a>
+
+    {% if request.session.last_trace_id %}
+      <span class="ms-auto small text-muted">
+        Last Trace:
+        <a href="{% url 'trace-detail-page' trace_id=request.session.last_trace_id %}">
+          {{ request.session.last_trace_id }}
+        </a>
+      </span>
+    {% endif %}
+  </div>
+</div>
+
+
 <main class="container pb-5">
   {% block content %}{% endblock %}
 </main>

@@ -201,5 +201,8 @@ class TraceIngestPage(APIView):
             meta=meta,
         )
 
+        request.session["last_trace_id"] = log.trace_id
+
+
         # Redirect to your trace detail UI
         return redirect("trace-detail-page", trace_id=log.trace_id)

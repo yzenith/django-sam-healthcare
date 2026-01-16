@@ -1,3 +1,6 @@
+from django.db.models import Q
+from logtrace.models import TraceLog
+
 import json
 import os
 import uuid
@@ -274,10 +277,30 @@ def validate_mirth_jwt(request):
 def home(request):
     total = HL7MessageLog.objects.count()
     latest_logs = HL7MessageLog.objects.order_by("-created_at")[:5]
+
+    trace_total = TraceLog.objects.count()
+    trace_errors = TraceLog.objects.filter(error_count__gt=0).count()
+
+    review_required_qs = TraceLog.objects.filter(
+        Q(status="FAILED") |
+        Q(error_count__gt=0) |
+        Q(steps__status__in=["WARN", "ERROR"])
+    ).distinct()
+    trace_review_required = review_required_qs.count()
+
+    latest_trace = TraceLog.objects.order_by("-timestamp").first()
+    latest_trace_id = latest_trace.trace_id if latest_trace else None
+
     return render(request, "home.html", {
         "total": total,
         "latest_logs": latest_logs,
+        "trace_total": trace_total,
+        "trace_errors": trace_errors,
+        "trace_review_required": trace_review_required,
+        "latest_trace_id": latest_trace_id,
     })
+
+
 
 def hl7_playground(request):
     return render(request, "hl7_playground.html")

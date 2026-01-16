@@ -6,7 +6,10 @@
 <!-- Hero / Story -->
 <div class="row mb-5">
   <div class="col-lg-9">
-    <h1 class="mb-3">Healthcare Integration Demo</h1>
+    <h1 class="mb-2">Healthcare Integration Analyst Demo</h1>
+    <div class="text-muted">
+      HL7 v2 → FHIR R4 → X12 (837/835) • Validation • Traceability • Reconciliation
+    </div>
 
     <p class="lead">
       This demo represents a simplified but realistic healthcare integration environment.
@@ -55,6 +58,24 @@
     </div>
   </div>
 </div>
+
+<!-- KPI Strip -->
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <div class="card">
+      <div class="card-body d-flex flex-wrap gap-2">
+        <span class="badge text-bg-secondary">HL7 logs: {{ total }}</span>
+        <span class="badge text-bg-secondary">Trace logs: {{ trace_total }}</span>
+        <span class="badge text-bg-danger">Trace errors: {{ trace_errors }}</span>
+        <span class="badge text-bg-warning text-dark">Review required: {{ trace_review_required }}</span>
+        {% if latest_trace_id %}
+          <span class="badge text-bg-primary">Latest Trace: {{ latest_trace_id }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- Capabilities -->
 <div class="row g-4 mb-5">
@@ -119,33 +140,36 @@
           <a href="{% url 'trace-logs-page' %}" class="btn btn-primary btn-sm">
             View Trace Logs
           </a>
+          <a href="{% url 'trace-logs-page' %}?review_required=1" class="btn btn-outline-danger btn-sm mt-2">
+            Exceptions Dashboard
+          </a>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSV Import -->
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">CSV Import + Reconciliation</h5>
+        <p class="card-text">
+          Upload a Patients CSV to simulate real-world migrations:
+          schema validation, normalization, dedupe, and upsert into the database.
+        </p>
+        <p class="small text-muted">
+          Includes reconciliation summary and downloadable rejects CSV.
+        </p>
+        <div class="mt-auto">
+          <a href="{% url 'patient-import' %}" class="btn btn-outline-primary btn-sm">
+            Open CSV Import
+          </a>
         </div>
       </div>
     </div>
   </div>
 </div>
-
-<!-- CSV Import -->
-<div class="col-md-3">
-  <div class="card h-100">
-    <div class="card-body d-flex flex-column">
-      <h5 class="card-title">CSV Import + Reconciliation</h5>
-      <p class="card-text">
-        Upload a Patients CSV to simulate real-world migrations:
-        schema validation, normalization, dedupe, and upsert into the database.
-      </p>
-      <p class="small text-muted">
-        Includes reconciliation summary and downloadable rejects CSV.
-      </p>
-      <div class="mt-auto">
-        <a href="{% url 'patient-import' %}" class="btn btn-outline-primary btn-sm">
-          Open CSV Import
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-
 
 <!-- Architecture explanation -->
 <div class="row mb-5">

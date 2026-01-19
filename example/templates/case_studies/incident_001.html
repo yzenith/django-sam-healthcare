@@ -16,6 +16,20 @@
 </div>
 
 <hr>
+<!-- Trace log Navigation -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-logs-page' %}">Trace Logs</a>
+  <a class="btn btn-sm btn-outline-danger" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Trace Ingest</a>
+
+  {% if request.session.last_trace_id %}
+    <a class="btn btn-sm btn-outline-primary"
+       href="{% url 'trace-detail-page' trace_id=request.session.last_trace_id %}">
+      Open Last Trace: {{ request.session.last_trace_id }}
+    </a>
+  {% endif %}
+</div>
+
 
 <!-- Executive Summary -->
 <section class="mb-4">
@@ -73,32 +87,64 @@
 <section class="mb-4">
   <h3>Evidence</h3>
   <ul>
-    <li><strong>Evidence #1:</strong> Traceability step shows “partial success” signal (needs review).</li>
-    <li><strong>Evidence #2:</strong> HL7 parse indicates <code>SEG.FIELD</code> missing/empty.</li>
-    <li><strong>Evidence #3:</strong> Mapping rule overwrote/dropped the field required to build Encounter.</li>
-    <li><strong>Evidence #4:</strong> Reconciliation mismatch: expected vs actual for <code>claim_id</code>.</li>
+        <li>
+            <strong>Evidence #1 (Trace shows partial success):</strong>
+            Trace indicates HL7 ingestion step succeeded, but a downstream step is missing/failed (Encounter not created).
+            Use <a href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a> to find “review required” traces.
+        </li>
+
+        <li>
+            <strong>Evidence #2 (Parsed HL7 payload is valid):</strong>
+            HL7 parse/validation shows the message format is acceptable (no fatal parsing error),
+            so the failure is likely in mapping/normalization.
+        </li>
+
+        <li>
+            <strong>Evidence #3 (Mapping edge case):</strong>
+            A required Encounter-building field is empty or not mapped (common examples: visit number, PV1 fields, attending doctor fields).
+            This results in “Patient created” but “Encounter missing.”
+        </li>
+
+        <li>
+            <strong>Evidence #4 (Downstream impact visible):</strong>
+            Claim/reconciliation (or any downstream dependency) cannot proceed reliably without Encounter,
+            causing mismatches or incomplete lifecycle data.
+        </li>
   </ul>
-  <div class="alert alert-info mb-0">
-    Replace the evidence bullets with links to your actual pages/log entries (Trace detail, log detail, etc.).
-  </div>
 </section>
 
 <!-- Root Cause -->
 <section class="mb-4">
   <h3>Root Cause</h3>
   <p>
-    Primary cause: a mapping rule incorrectly handled an optional HL7 field when the value is empty, leading to missing Encounter creation.
-    Contributing cause: lack of explicit validation/alerting for partial-success states.
-  </p>
+    <strong>Primary cause:</strong> HL7 parsing succeeded, but Encounter creation was gated on a field that was
+    missing/empty in certain messages (or not mapped during normalization). As a result, the pipeline produced a
+    misleading “success” signal at ingestion while downstream resources were incomplete.
+    </p>
+    <p>
+        <strong>Contributing cause:</strong> The system did not flag “partial success” clearly enough (no explicit
+        validation/alerting when Encounter is absent but Patient exists).
+    </p>
 </section>
 
 <!-- Fix -->
 <section class="mb-4">
   <h3>Fix</h3>
   <ul>
-    <li><strong>Short-term mitigation:</strong> reject + surface a clear error when required fields are missing (avoid silent partial success).</li>
-    <li><strong>Long-term fix:</strong> update mapping to handle empty values safely; add regression tests for this edge case.</li>
-    <li><strong>Rollback strategy:</strong> revert mapping version if reconciliation match rate drops.</li>
+    <li>
+        <strong>Short-term mitigation:</strong>
+        If Encounter-required fields are missing, mark the trace as <em>review_required</em> (or reject with a clear message)
+        so the issue is visible instead of silently producing incomplete records.
+    </li>
+    <li>
+        <strong>Long-term fix:</strong>
+        Update normalization/mapping to handle optional fields safely, and define a deterministic rule:
+        either (A) create Encounter with defaults + warnings, or (B) reject and require correction.
+    </li>
+    <li>
+        <strong>Rollback strategy:</strong>
+        If the change increases false rejects or reduces throughput, revert mapping version and keep the alerting guardrail.
+    </li>
   </ul>
 </section>
 

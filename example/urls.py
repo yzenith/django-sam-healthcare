@@ -18,6 +18,20 @@ urlpatterns = [
     path("import/patients/<int:pk>/", patient_import_detail, name="patient-import-detail"),
     path("import/patients/<int:pk>/rejects.csv", patient_import_rejects_csv, name="patient-import-rejects-csv"),
     path("overview/", TemplateView.as_view(template_name="overview.html"), name="overview"),
+    path(
+        "case-studies/incident-001/",
+        TemplateView.as_view(
+            template_name="case_studies/incident_001.html",
+            extra_context={
+                "incident_id": "INC-001",
+                "title": "HL7 Ingestion Success but Encounter Missing (Traceability Case Study)",
+                "severity": "S2",
+                "tags": ["HL7", "Mapping", "Traceability", "Reconciliation"],
+                "status": "Resolved (demo scenario)",
+            },
+        ),
+        name="case-study-incident-001",
+    ),
 
 
 

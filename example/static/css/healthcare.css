@@ -27,3 +27,21 @@ h1, h2, h3 {
 .badge-x12 {
   background-color: #198754;
 }
+
+h2 {
+  margin: 20px 0 10px;
+  color: #004a99;
+  font-size: 18px;
+}
+
+.why {
+  background: #eef6ff;
+  border: 1px solid #d0e1f3;
+  border-left: 6px solid #0074d9;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 18px 0 22px;
+}
+
+.why ul { margin: 10px 0 0; padding-left: 18px; }
+.why li { margin: 6px 0; color: #2d3e50; }

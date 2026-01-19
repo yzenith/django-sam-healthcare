@@ -1,0 +1,12 @@
+.pipeline { margin: 40px 0; }
+.flow { display:flex; align-items:center; gap:12px; }
+.node {
+  border:1px solid #ddd;
+  padding:12px 16px;
+  border-radius:8px;
+  background:#fafafa;
+  font-weight:600;
+}
+.arrow { font-size:24px; color:#666; }
+.note { color:#555; margin-top:8px; }
+/* 医疗风：柔和蓝绿+卡片阴影 */

@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}Healthcare Integration Demo{% endblock %}</title>
+  <title>{% block title %}Healthcare Integration Analyst Portfolio{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Bootstrap 5 CDN -->
@@ -20,7 +20,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
   <div class="container">
     <a class="navbar-brand" href="{% url 'home' %}">
-      HL7 → FHIR → X12 Demo
+      Realistic HL7 → FHIR → X12 Message Flows + Traceability
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
@@ -76,6 +76,15 @@
           <a class="nav-link {% if request.resolver_match.url_name == 'trace-ingest-page' %}active{% endif %}"
             href="{% url 'trace-ingest-page' %}">Trace Ingest</a>
         </li>
+
+        <!-- Case Studies -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'case-study-incident-001' %}active{% endif %}"
+            href="{% url 'case-study-incident-001' %}">
+            Case Study
+          </a>
+        </li>
+
 
       </ul>
     </div>

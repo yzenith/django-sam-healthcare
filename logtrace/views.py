@@ -7,6 +7,7 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.renderers import TemplateHTMLRenderer
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema
 import json
 from django.shortcuts import redirect
 
@@ -17,6 +18,13 @@ from .services import ingest_payload
 
 
 class IngestAPIView(APIView):
+    @extend_schema(
+        summary="Ingest a raw payload for trace logging",
+        description="Accepts HL7, JSON, or EDI payloads and creates a TraceLog with step-by-step audit trail.",
+        request=IngestSerializer,
+        responses={201: {"type": "object", "properties": {"trace_id": {"type": "string"}}}},
+        tags=["Trace & Audit"],
+    )
     def post(self, request):
         ser = IngestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -61,6 +69,7 @@ class TraceLogPagePagination(PageNumberPagination):
     max_page_size = 200
 
 
+@extend_schema(exclude=True)
 class TraceLogListPage(APIView):
     renderer_classes = [TemplateHTMLRenderer]
     template_name = "trace/log_list.html"
@@ -123,6 +132,7 @@ class TraceLogListPage(APIView):
         return Response(context)
 
 
+@extend_schema(exclude=True)
 class TraceLogDetailPage(APIView):
     renderer_classes = [TemplateHTMLRenderer]
     template_name = "trace/log_detail.html"
@@ -139,6 +149,7 @@ class TraceLogDetailPage(APIView):
         return Response(context)
 
 
+@extend_schema(exclude=True)
 class TraceIngestPage(APIView):
     """
     Simple HTML form to trigger trace ingestion (creates TraceLog).

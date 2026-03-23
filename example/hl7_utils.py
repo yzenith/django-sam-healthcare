@@ -23,6 +23,25 @@ ORU_EVENT_REASON = {
     "R01": "Publish lab results: clinical review + charge capture",
 }
 
+ORM_EVENT_LABELS = {
+    "O01": "New Order",
+    "O02": "Order Response",
+}
+
+MDM_EVENT_LABELS = {
+    "T01": "Original Document Notification",
+    "T02": "Original Document Notification and Content",
+    "T08": "Document Edit Notification and Content",
+}
+
+ORM_EVENT_REASON = {
+    "O01": "Initiate lab/radiology order: triggers downstream fulfillment workflow",
+}
+
+MDM_EVENT_REASON = {
+    "T02": "Distribute clinical document: dictation, transcription, or scanned record",
+}
+
 def normalize_hl7(hl7_text: str) -> str:
     """Normalize HL7 line endings to \\n."""
     return (hl7_text or "").replace("\r\n", "\n").replace("\r", "\n")
@@ -75,6 +94,18 @@ def build_trigger_event(message_type: str) -> dict:
             "description": ORU_EVENT_LABELS.get(evt, f"ORU Event {evt or '(unknown)'}"),
             "business_reason": ORU_EVENT_REASON.get(evt, ""),
         }
+    if msg == "ORM":
+        return {
+            "code": evt,
+            "description": ORM_EVENT_LABELS.get(evt, f"ORM Event {evt or '(unknown)'}"),
+            "business_reason": ORM_EVENT_REASON.get(evt, ""),
+        }
+    if msg == "MDM":
+        return {
+            "code": evt,
+            "description": MDM_EVENT_LABELS.get(evt, f"MDM Event {evt or '(unknown)'}"),
+            "business_reason": MDM_EVENT_REASON.get(evt, ""),
+        }
     return {"code": evt, "description": "", "business_reason": ""}
 
 def build_message_profile(message_type: str) -> str:
@@ -95,8 +126,41 @@ def build_message_profile(message_type: str) -> str:
     if msg == "ORU":
         label = ORU_EVENT_LABELS.get(evt, f"ORU Event {evt or '(unknown)'}")
         return f"HL7 v2 ORU ({label})"
+    if msg == "ORM":
+        label = ORM_EVENT_LABELS.get(evt, f"ORM Event {evt or '(unknown)'}")
+        return f"HL7 v2 ORM ({label})"
+    if msg == "MDM":
+        label = MDM_EVENT_LABELS.get(evt, f"MDM Event {evt or '(unknown)'}")
+        return f"HL7 v2 MDM ({label})"
 
     return f"HL7 v2 {msg} ({evt})" if evt else f"HL7 v2 {msg}"
+
+def generate_ack(original_hl7: str, ack_code: str = "AA", error_msg: str = "") -> str:
+    """
+    Generate an HL7 v2 ACK response segment.
+
+    ack_code:
+      AA = Application Accept   (message processed successfully)
+      AE = Application Error    (validation or mapping failure)
+      AR = Application Reject   (auth failure, unrecognised message type)
+    """
+    segs = parse_hl7(original_hl7)
+    msh = (segs.get("MSH") or [[]])[0]
+
+    msg_control_id = msh[9] if len(msh) > 9 else "UNKNOWN"
+    sending_app    = msh[2] if len(msh) > 2 else ""
+    sending_fac    = msh[3] if len(msh) > 3 else ""
+    version        = msh[11] if len(msh) > 11 else "2.3"
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+
+    ack = (
+        f"MSH|^~\\&|DJANGO-SAM|HEALTHCARE|{sending_app}|{sending_fac}"
+        f"|{ts}||ACK|ACK{ts}|P|{version}\r"
+        f"MSA|{ack_code}|{msg_control_id}|{error_msg[:80]}\r"
+    )
+    return ack
+
 
 def hl7_to_all(hl7_text: str):
     lines = hl7_text.strip().split("\n")
@@ -161,6 +225,14 @@ def hl7_to_all(hl7_text: str):
         result = hl7_oru_to_fhir(hl7_text)
         # result already includes message_type="ORU^R01" etc.
         return result
+
+    # --- ORM messages: lab/radiology orders ---
+    if msg_type.startswith("ORM"):
+        return hl7_orm_to_fhir(hl7_text)
+
+    # --- MDM messages: clinical documents ---
+    if msg_type.startswith("MDM"):
+        return hl7_mdm_to_fhir(hl7_text)
 
     # --- Unsupported / future types ---
     return {
@@ -785,3 +857,150 @@ def reconcile_837_835(x12_837: str, x12_835: str) -> dict:
         "balance_due_to_provider": round(max(billed_total - paid - patient_resp, 0.0), 2),
     }
 
+
+def hl7_orm_to_fhir(hl7_text: str) -> dict:
+    """
+    Convert ORM^O01 (lab/radiology order) to FHIR ServiceRequest.
+    Segments used: MSH, PID, ORC, OBR.
+    """
+    segments_raw = [ln.strip() for ln in hl7_text.strip().splitlines() if ln.strip()]
+
+    msg_type = "ORM^O01"
+    pid = {}
+    orc = {}
+    obr = {}
+
+    for seg in segments_raw:
+        fields = seg.split("|")
+
+        if seg.startswith("MSH") and len(fields) > 8:
+            msg_type = fields[8] or msg_type
+
+        if seg.startswith("PID"):
+            patient_id  = fields[3] if len(fields) > 3 else ""
+            name_field  = fields[5] if len(fields) > 5 else ""
+            comps = name_field.split("^")
+            pid = {
+                "id": patient_id,
+                "family": comps[0] if comps else "",
+                "given":  comps[1] if len(comps) > 1 else "",
+            }
+
+        if seg.startswith("ORC"):
+            orc = {
+                "order_control": fields[1] if len(fields) > 1 else "",
+                "placer_order":  fields[2] if len(fields) > 2 else "",
+                "filler_order":  fields[3] if len(fields) > 3 else "",
+                "order_status":  fields[5] if len(fields) > 5 else "",
+                "order_datetime": fields[9] if len(fields) > 9 else "",
+            }
+
+        if seg.startswith("OBR"):
+            code_field = fields[4] if len(fields) > 4 else ""
+            code_parts = code_field.split("^")
+            obr = {
+                "placer_order": fields[2] if len(fields) > 2 else "",
+                "code":         code_parts[0] if code_parts else "",
+                "description":  code_parts[1] if len(code_parts) > 1 else "",
+                "priority":     fields[5] if len(fields) > 5 else "R",
+                "requested_dt": fields[6] if len(fields) > 6 else "",
+            }
+
+    patient_id = pid.get("id", "")
+
+    service_request = {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "priority": "routine" if obr.get("priority", "R") == "R" else "urgent",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": obr.get("code", ""),
+                "display": obr.get("description", ""),
+            }]
+        },
+        "subject": {"reference": f"Patient/{patient_id}"} if patient_id else None,
+        "authoredOn": obr.get("requested_dt") or orc.get("order_datetime") or None,
+        "identifier": [{
+            "system": "urn:example:placer-order",
+            "value": orc.get("placer_order") or obr.get("placer_order") or "",
+        }],
+    }
+
+    return {
+        "message_type": msg_type,
+        "raw_hl7": hl7_text,
+        "patient_id": patient_id,
+        "service_request": service_request,
+    }
+
+
+def hl7_mdm_to_fhir(hl7_text: str) -> dict:
+    """
+    Convert MDM^T02 (clinical document notification) to FHIR DocumentReference.
+    Segments used: MSH, PID, EVN, TXA.
+    """
+    segments_raw = [ln.strip() for ln in hl7_text.strip().splitlines() if ln.strip()]
+
+    msg_type = "MDM^T02"
+    pid = {}
+    txa = {}
+
+    for seg in segments_raw:
+        fields = seg.split("|")
+
+        if seg.startswith("MSH") and len(fields) > 8:
+            msg_type = fields[8] or msg_type
+
+        if seg.startswith("PID"):
+            patient_id = fields[3] if len(fields) > 3 else ""
+            name_field = fields[5] if len(fields) > 5 else ""
+            comps = name_field.split("^")
+            pid = {
+                "id": patient_id,
+                "family": comps[0] if comps else "",
+                "given":  comps[1] if len(comps) > 1 else "",
+            }
+
+        if seg.startswith("TXA"):
+            doc_type_field = fields[2] if len(fields) > 2 else ""
+            doc_parts = doc_type_field.split("^")
+            txa = {
+                "set_id":           fields[1]  if len(fields) > 1  else "",
+                "doc_type_code":    doc_parts[0] if doc_parts else "",
+                "doc_type_display": doc_parts[1] if len(doc_parts) > 1 else "",
+                "activity_dt":      fields[4]  if len(fields) > 4  else "",
+                "unique_doc_id":    fields[12] if len(fields) > 12 else "",
+                "completion_status": fields[17] if len(fields) > 17 else "AU",
+            }
+
+    patient_id = pid.get("id", "")
+
+    status_map = {"AU": "current", "IN": "entered-in-error", "IP": "current", "LA": "superseded"}
+    doc_status = status_map.get(txa.get("completion_status", "AU"), "current")
+
+    document_reference = {
+        "resourceType": "DocumentReference",
+        "status": doc_status,
+        "type": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": txa.get("doc_type_code", ""),
+                "display": txa.get("doc_type_display", ""),
+            }]
+        },
+        "subject": {"reference": f"Patient/{patient_id}"} if patient_id else None,
+        "date": txa.get("activity_dt") or None,
+        "identifier": [{
+            "system": "urn:example:document-id",
+            "value": txa.get("unique_doc_id", ""),
+        }] if txa.get("unique_doc_id") else [],
+    }
+
+    return {
+        "message_type": msg_type,
+        "raw_hl7": hl7_text,
+        "patient_id": patient_id,
+        "document_reference": document_reference,
+    }

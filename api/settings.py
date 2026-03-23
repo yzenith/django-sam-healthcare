@@ -53,6 +53,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost", ".vercel.app"]
 
 INSTALLED_APPS = [
     'rest_framework',
+    'drf_spectacular',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -62,6 +63,53 @@ INSTALLED_APPS = [
     'example',
     'logtrace',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Healthcare Integration API',
+    'DESCRIPTION': (
+        'HL7 v2 -> FHIR R4 -> X12 transformation pipeline. '
+        'Supports ADT, ORU, ORM, MDM message types with full audit traceability.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'ENUM_NAME_OVERRIDES': {
+        'TraceLogStatusEnum':   'logtrace.models.TraceLog.Status',
+        'TraceStepStatusEnum':  'logtrace.models.TraceStep.StepStatus',
+        'HL7ProcessingStatusEnum': 'example.models.HL7MessageLog.ProcessingStatus',
+        'HL7ErrorCategoryEnum':    'example.models.HL7MessageLog.ErrorCategory',
+    },
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {
+            '()': 'logging.Formatter',
+            'fmt': '{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+            'datefmt': '%Y-%m-%dT%H:%M:%SZ',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'example': {'handlers': ['console'], 'level': 'INFO',    'propagate': False},
+        'logtrace': {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

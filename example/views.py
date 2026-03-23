@@ -6,7 +6,8 @@ import os
 import uuid
 import csv
 import io
-from django.http import HttpResponseForbidden, HttpResponse
+from django.db import connection
+from django.http import HttpResponseForbidden, HttpResponse, JsonResponse
 
 import jwt
 from datetime import datetime
@@ -16,6 +17,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
+from drf_spectacular.utils import extend_schema, OpenApiExample, inline_serializer
+from rest_framework import serializers as drf_serializers
 from django.shortcuts import get_object_or_404, render, redirect
 from .hl7_utils import (
     hl7_to_all,
@@ -25,6 +28,7 @@ from .hl7_utils import (
     build_trigger_event,
     extract_source_context_from_msh,
     hl7_oru_to_fhir,
+    generate_ack,
 )
 
 from .models import HL7MessageLog, PatientRecord, PatientImportRun
@@ -382,6 +386,42 @@ def index(request):
 class HL7TransformView(APIView):
     renderer_classes = [JSONRenderer]
 
+    @extend_schema(
+        summary="Transform HL7 v2 message to FHIR + X12",
+        description=(
+            "Accepts an HL7 v2 message (ADT, ORU, ORM, MDM) and returns the "
+            "equivalent FHIR R4 resources plus X12 837/835 claim data where applicable."
+        ),
+        request=inline_serializer(
+            name="HL7TransformRequest",
+            fields={"hl7_message": drf_serializers.CharField()},
+        ),
+        responses={
+            200: inline_serializer(
+                name="HL7TransformResponse",
+                fields={
+                    "message_type": drf_serializers.CharField(),
+                    "patient":       drf_serializers.DictField(required=False),
+                    "encounter":     drf_serializers.DictField(required=False),
+                    "x12_837":       drf_serializers.CharField(required=False),
+                    "x12_835":       drf_serializers.CharField(required=False),
+                    "claim_reconciliation": drf_serializers.DictField(required=False),
+                },
+            ),
+            400: inline_serializer(
+                name="HL7TransformError",
+                fields={"error": drf_serializers.CharField()},
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "ADT A01 Admission",
+                request_only=True,
+                value={"hl7_message": "MSH|^~\\&|MIRTH|HOSPITAL|RECV|FAC|202512181200||ADT^A01|MSG001|P|2.3\rPID|1||12345^^^MRN||DOE^JOHN||19800101|M\rPV1|1|I|W^101^1"},
+            ),
+        ],
+        tags=["HL7 Transformation"],
+    )
     def post(self, request, *args, **kwargs):
         # JSON requests: use DRF parser (request.data) and DO NOT touch request.body
         if request.content_type and "application/json" in request.content_type:
@@ -404,6 +444,43 @@ class HL7TransformView(APIView):
 
     
 class MirthHL7View(APIView):
+    @extend_schema(
+        summary="Mirth Connect inbound HL7 endpoint",
+        description=(
+            "JWT-authenticated endpoint for Mirth Connect channels. Validates the HL7 message, "
+            "transforms it, persists an audit log, and returns an HL7 v2 ACK alongside JSON results."
+        ),
+        request=inline_serializer(
+            name="MirthHL7Request",
+            fields={
+                "hl7_message":    drf_serializers.CharField(),
+                "source_context": drf_serializers.DictField(required=False),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="MirthHL7Response",
+                fields={
+                    "status":   drf_serializers.CharField(),
+                    "trace_id": drf_serializers.CharField(),
+                    "ack":      drf_serializers.CharField(),
+                    "summary":  drf_serializers.DictField(),
+                    "warnings": drf_serializers.ListField(child=drf_serializers.CharField()),
+                },
+            ),
+            400: inline_serializer(
+                name="MirthHL7Error",
+                fields={
+                    "status":         drf_serializers.CharField(),
+                    "trace_id":       drf_serializers.CharField(),
+                    "ack":            drf_serializers.CharField(),
+                    "error_category": drf_serializers.CharField(),
+                    "errors":         drf_serializers.ListField(child=drf_serializers.CharField()),
+                },
+            ),
+        },
+        tags=["Mirth Connect"],
+    )
     def post(self, request, *args, **kwargs):
         trace_id = uuid.uuid4().hex
 
@@ -505,10 +582,12 @@ class MirthHL7View(APIView):
                 steps=steps,
             )
 
+            ack = generate_ack(normalized, ack_code="AE", error_msg="; ".join(errors))
             return Response(
                 {
                     "status": "failed",
                     "trace_id": trace_id,
+                    "ack": ack,
                     "error_category": "VALIDATION",
                     "errors": errors,
                     "warnings": warn_list,
@@ -561,10 +640,12 @@ class MirthHL7View(APIView):
             error_message=error_message,
         )
 
+        ack = generate_ack(normalized, ack_code="AA")
         return Response(
             {
                 "status": "ok",
                 "trace_id": trace_id,
+                "ack": ack,
                 "summary": summary,
                 "warnings": warn_list,
                 "fhir": result.get("fhir"),
@@ -573,3 +654,21 @@ class MirthHL7View(APIView):
             status=status.HTTP_200_OK,
         )
 
+
+def health(request):
+    """
+    GET /health/
+    Returns 200 if the DB is reachable, 503 otherwise.
+    Used by Vercel health checks and uptime monitors.
+    """
+    try:
+        connection.ensure_connection()
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    payload = {
+        "status": "ok" if db_ok else "degraded",
+        "db": "ok" if db_ok else "error",
+    }
+    return JsonResponse(payload, status=200 if db_ok else 503)

@@ -6,7 +6,7 @@
 <!-- Hero / Story -->
 <div class="row mb-5">
   <div class="col-lg-9">
-    <h1 class="mb-2">Healthcare Integration Analyst Demo</h1>
+    <h1 class="mb-2">Healthcare Integration Engineer Demo</h1>
     <div class="text-muted">
       HL7 v2 → FHIR R4 → X12 (837/835) • Validation • Traceability • Reconciliation
     </div>
@@ -14,11 +14,11 @@
     <p class="lead">
       This demo represents a simplified but realistic healthcare integration environment.
 
-        It is designed to showcase how an Integration Analyst:
-        - Receives and analyzes HL7 messages
-        - Validates transformations
-        - Traces issues across systems
-        - Communicates technical findings clearly
+        It is designed to showcase how an Integration Engineer:
+        - Designs and validates inbound HL7 interfaces
+        - Transforms messages into FHIR R4 and X12
+        - Traces issues across systems with full auditability
+        - Operates pipelines with observability and error recovery
 
 
     </p>
@@ -49,7 +49,7 @@
   <div class="col-lg-10">
     <div class="alert alert-secondary">
       <strong>Why this matters:</strong>
-      In production healthcare integrations, analysts and architects must debug
+      In production healthcare integrations, engineers must debug
       message flows involving EHRs, clearinghouses, and payers — often days or weeks
       after the original transaction occurred.
       <br><br>
@@ -134,7 +134,7 @@
           and errors are recorded in sequence.
         </p>
         <p class="small text-muted">
-          This reflects how integration analysts investigate production issues.
+          This reflects how integration engineers investigate production issues.
         </p>
         <div class="mt-auto">
           <a href="{% url 'trace-logs-page' %}" class="btn btn-primary btn-sm">
@@ -200,7 +200,7 @@
         Failures are captured as data, not just logs.
       </li>
       <li>
-        <strong>Analyst-friendly UI:</strong>
+        <strong>Operational UI:</strong>
         Built to support investigation, not just development.
       </li>
       <li>

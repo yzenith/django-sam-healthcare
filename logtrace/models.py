@@ -33,7 +33,7 @@ class TraceLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-    # --- Analyst-facing computed fields (UI) ---
+    # --- Operational computed fields (UI) ---
 
     @property
     def message_type(self) -> str:
@@ -57,7 +57,7 @@ class TraceLog(models.Model):
 
     @property
     def review_required(self) -> bool:
-        # Analyst-friendly rule: any warnings/errors or failed processing
+        # Operational rule: any warnings/errors or failed processing
         if self.status == self.Status.FAILED:
             return True
         if self.error_count and self.error_count > 0:
@@ -67,7 +67,7 @@ class TraceLog(models.Model):
     @property
     def processing_status(self) -> str:
         """
-        Analyst-facing status (different from internal TraceLog.status):
+        Operational status (different from internal TraceLog.status):
         SUCCESS / SUCCESS_WITH_WARNINGS / REJECTED / FAILED_TRANSFORMATION
         """
         if self.status == self.Status.FAILED:

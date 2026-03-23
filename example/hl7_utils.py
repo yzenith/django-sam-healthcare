@@ -243,7 +243,7 @@ def hl7_to_all(hl7_text: str):
 
 def extract_hl7_summary(hl7_text: str) -> dict:
     """
-    Extract analyst-friendly summary fields from an HL7 message.
+    Extract operational summary fields from an HL7 message.
     This is NOT a full parser – it is designed for triage & support use.
     """
 

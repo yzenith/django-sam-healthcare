@@ -15,7 +15,7 @@ This service is intentionally “architecturally correct” even if parsing is m
 - summary + error_count derived from actual steps
 - duration captured
 
-Focus: Integration Analyst demo value (traceability, validation, operational flags).
+Focus: Integration Engineer demo value (traceability, validation, operational flags).
 """
 
 
@@ -89,7 +89,7 @@ def _parse_preview(input_type: str, raw_payload: str) -> Tuple[Dict[str, Any], L
                 "message_control_id": message_control_id,
             }
 
-            # --- Minimal PID extraction for analyst-style warnings ---
+            # --- Minimal PID extraction for operational warnings ---
             pid_line = next((ln for ln in raw_payload.splitlines() if ln.startswith("PID|")), "")
             pid_parts = pid_line.split("|") if pid_line else []
             patient_id = pid_parts[3] if len(pid_parts) > 3 else ""   # PID-3
@@ -192,7 +192,7 @@ def ingest_payload(
     preview, parse_steps = _parse_preview(input_type, raw_payload)
     all_steps.extend(parse_steps)
 
-    # 2) Convert preview warnings to trace steps (analyst-visible)
+    # 2) Convert preview warnings to trace steps (operational)
     if input_type == "HL7":
         for w in (preview.get("warnings") or []):
             all_steps.append(
@@ -247,7 +247,7 @@ def ingest_payload(
         )
         sequence += 1
 
-    # 6) Normalize meta for analyst UI (source_system, message_type)
+    # 6) Normalize meta for operational UI (source_system, message_type)
     meta_dict = log.meta or {}
     if not isinstance(meta_dict, dict):
         meta_dict = {}

@@ -6,6 +6,7 @@ import os
 import uuid
 import csv
 import io
+import random
 from django.db import connection
 from django.http import HttpResponseForbidden, HttpResponse, JsonResponse
 
@@ -796,6 +797,65 @@ def claim_reconciliation_report(request):
         "status_choices": ClaimRecord.ClaimStatus.choices,
         "current_status": status_filter,
     })
+
+
+@login_required
+def retry_webhook(request, pk: int):
+    """
+    POST /webhooks/<pk>/retry/
+    Re-attempts delivery of a failed or pending WebhookDelivery.
+    Enforces max_retries limit.
+    """
+    from django.contrib import messages as flash
+
+    delivery = get_object_or_404(WebhookDelivery, pk=pk)
+
+    if delivery.attempt_count >= delivery.max_retries:
+        flash.error(request, f"Max retries ({delivery.max_retries}) reached for delivery #{pk}.")
+        return redirect("webhook-log")
+
+    if delivery.status == WebhookDelivery.DeliveryStatus.DELIVERED:
+        flash.info(request, f"Delivery #{pk} already succeeded.")
+        return redirect("webhook-log")
+
+    # Re-run delivery with same payload
+    delivery.attempt_count += 1
+    delivery.status = WebhookDelivery.DeliveryStatus.RETRYING
+    delivery.next_retry_at = None
+    delivery.save(update_fields=["attempt_count", "status", "next_retry_at"])
+
+    # Simulate the retry attempt
+    import time
+    from django.utils import timezone
+    from example.webhook_service import SIMULATED_ERRORS
+
+    start = time.time()
+    time.sleep(random.uniform(0.01, 0.05))
+    success = random.random() < 0.80
+    duration_ms = int((time.time() - start) * 1000)
+
+    if success:
+        delivery.status = WebhookDelivery.DeliveryStatus.DELIVERED
+        delivery.response_code = 201
+        delivery.delivered_at = timezone.now()
+        delivery.error_detail = ""
+        flash.success(request, f"Delivery #{pk} succeeded on retry #{delivery.attempt_count}.")
+    else:
+        delivery.status = WebhookDelivery.DeliveryStatus.FAILED
+        delivery.response_code = 503
+        delivery.error_detail = random.choice(SIMULATED_ERRORS)
+        # Schedule next retry with exponential backoff (2^attempt minutes)
+        from datetime import timedelta
+        delay_minutes = 2 ** delivery.attempt_count
+        delivery.next_retry_at = timezone.now() + timedelta(minutes=delay_minutes)
+        flash.warning(request, f"Delivery #{pk} retry #{delivery.attempt_count} failed. Next retry in {delay_minutes}m.")
+
+    delivery.duration_ms = duration_ms
+    delivery.save(update_fields=[
+        "status", "response_code", "delivered_at", "error_detail",
+        "next_retry_at", "duration_ms",
+    ])
+    return redirect("webhook-log")
 
 
 @login_required

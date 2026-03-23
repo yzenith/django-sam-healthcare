@@ -86,9 +86,11 @@
         <th>Target URL</th>
         <th>HTTP</th>
         <th>Duration</th>
+        <th>Attempts</th>
         <th>Trace</th>
-        <th>Error</th>
+        <th>Error / Next Retry</th>
         <th>Sent</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -106,7 +108,7 @@
           {% endif %}
         </td>
         <td><code>{{ d.fhir_resource_type }}</code></td>
-        <td class="small text-truncate" style="max-width:200px;" title="{{ d.target_url }}">
+        <td class="small text-truncate" style="max-width:180px;" title="{{ d.target_url }}">
           {{ d.target_url }}
         </td>
         <td>
@@ -119,6 +121,9 @@
         <td class="small">
           {% if d.duration_ms %}{{ d.duration_ms }}ms{% else %}—{% endif %}
         </td>
+        <td class="small text-center">
+          {{ d.attempt_count }}/{{ d.max_retries }}
+        </td>
         <td>
           {% if d.trace_id %}
             <a href="{% url 'mirth-messages' %}?trace_id={{ d.trace_id }}" class="small font-monospace">
@@ -128,10 +133,25 @@
         </td>
         <td class="small text-danger">
           {% if d.error_detail %}
-            <span title="{{ d.error_detail }}">{{ d.error_detail|truncatechars:40 }}</span>
+            <span title="{{ d.error_detail }}">{{ d.error_detail|truncatechars:35 }}</span>
+            {% if d.next_retry_at %}
+              <div class="text-muted" style="font-size:0.7rem;">retry at {{ d.next_retry_at|date:"H:i" }}</div>
+            {% endif %}
           {% else %}—{% endif %}
         </td>
         <td class="small text-muted">{{ d.created_at|date:"Y-m-d H:i:s" }}</td>
+        <td>
+          {% if d.status != "DELIVERED" and d.attempt_count < d.max_retries %}
+            <form method="post" action="{% url 'webhook-retry' d.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-warning" style="font-size:0.75rem;padding:2px 6px;">
+                Retry
+              </button>
+            </form>
+          {% elif d.attempt_count >= d.max_retries %}
+            <span class="text-muted small">DLQ</span>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

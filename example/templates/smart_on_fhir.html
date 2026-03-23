@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}SMART on FHIR{% endblock %}
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <h1 class="mb-2">SMART on FHIR</h1>
+    <p class="text-muted">
+      SMART (Substitutable Medical Applications, Reusable Technologies) is the
+      OAuth2 authorization layer for FHIR APIs. Required by ONC HTI-1 for all
+      certified EHRs since 2024.
+    </p>
+  </div>
+</div>
+
+<!-- Authorization flow diagram -->
+<div class="card mb-4">
+  <div class="card-header"><strong>Authorization Flow</strong></div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap align-items-start gap-0">
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-primary px-3 py-2 fs-6">1. App</div>
+        <div class="small text-muted mt-1">Discovers<br>/.well-known/</div>
+      </div>
+      <div class="text-muted fw-bold px-1 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-secondary px-3 py-2 fs-6">2. EHR</div>
+        <div class="small text-muted mt-1">Auth endpoint<br>+ consent</div>
+      </div>
+      <div class="text-muted fw-bold px-1 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-secondary px-3 py-2 fs-6">3. App</div>
+        <div class="small text-muted mt-1">Auth code<br>exchange</div>
+      </div>
+      <div class="text-muted fw-bold px-1 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-success px-3 py-2 fs-6">4. Token</div>
+        <div class="small text-muted mt-1">access_token<br>+ patient context</div>
+      </div>
+      <div class="text-muted fw-bold px-1 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-info px-3 py-2 fs-6">5. FHIR API</div>
+        <div class="small text-muted mt-1">Bearer token<br>scoped reads</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Live well-known endpoint -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Live /.well-known/smart-configuration</strong>
+    <span class="badge text-bg-secondary">GET /.well-known/smart-configuration</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Third-party apps call this endpoint first to discover the authorization server,
+      token endpoint, and supported OAuth2 scopes. This response is real — try it.
+    </p>
+    <button class="btn btn-sm btn-outline-primary mb-2" onclick="loadSmartConfig()">Load Configuration</button>
+    <pre id="smart-config-result" class="bg-light border rounded p-3 small mb-0" style="max-height:350px;overflow-y:auto;">(click Load)</pre>
+  </div>
+</div>
+
+<!-- Scopes -->
+<div class="card mb-4">
+  <div class="card-header"><strong>Key SMART Scopes</strong></div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead class="table-light"><tr><th>Scope</th><th>Meaning</th><th>Use case</th></tr></thead>
+      <tbody>
+        <tr><td><code>launch/patient</code></td><td>EHR-launched context</td><td>App gets current patient automatically</td></tr>
+        <tr><td><code>patient/Patient.read</code></td><td>Read patient's own record</td><td>Patient-facing portal app</td></tr>
+        <tr><td><code>patient/*.read</code></td><td>Read all resources for patient</td><td>Care management app</td></tr>
+        <tr><td><code>user/*.read</code></td><td>Read all resources user can see</td><td>Provider-facing clinical app</td></tr>
+        <tr><td><code>system/*.read</code></td><td>Backend system access (no user)</td><td>Payer-to-payer data exchange, analytics</td></tr>
+        <tr><td><code>offline_access</code></td><td>Refresh tokens</td><td>Long-running background jobs</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Launch types -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title">EHR Launch</h6>
+        <p class="card-text small text-muted">
+          EHR opens the app in an iframe with a <code>launch</code> token.
+          App exchanges it for patient/encounter context. Used for apps
+          embedded in the EHR workflow (e.g. CDS in Epic).
+        </p>
+        <code class="small">?iss=https://ehr.example.com/fhir&launch=xyz</code>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title">Standalone Launch</h6>
+        <p class="card-text small text-muted">
+          App initiates auth independently, asks user to select patient.
+          Used for patient portals, mobile apps, and payer-side tools
+          that aren't embedded in a specific EHR.
+        </p>
+        <code class="small">?client_id=&hellip;&scope=launch+patient/*.read</code>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title">Backend Services</h6>
+        <p class="card-text small text-muted">
+          System-to-system, no user interaction. App authenticates with
+          a signed JWT (private_key_jwt). Used for CMS payer-to-payer
+          exchange, bulk FHIR exports, and analytics pipelines.
+        </p>
+        <code class="small">grant_type=client_credentials</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info small">
+  <strong>This demo:</strong> Uses Django session auth as a stand-in for SMART bearer tokens.
+  The <code>/.well-known/smart-configuration</code> endpoint above is real and returns the
+  correct structure. In a production deployment you would point <code>authorization_endpoint</code>
+  and <code>token_endpoint</code> at your OAuth2 provider (Keycloak, Azure AD B2C, AWS Cognito).
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadSmartConfig() {
+  const el = document.getElementById('smart-config-result');
+  el.textContent = 'Loading…';
+  fetch('/.well-known/smart-configuration')
+    .then(r => r.json())
+    .then(data => { el.textContent = JSON.stringify(data, null, 2); })
+    .catch(err => { el.textContent = 'Error: ' + err; });
+}
+</script>
+{% endblock %}

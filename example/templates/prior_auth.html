@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Da Vinci Prior Authorization (CRD / PAS / DTR){% endblock %}
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <h1 class="mb-2">Da Vinci Prior Authorization</h1>
+    <p class="text-muted">
+      CMS-0057-F (effective 2026) requires payers to support FHIR-based prior
+      authorization via three Da Vinci Implementation Guides.
+      This page demonstrates the full workflow with live API calls.
+    </p>
+  </div>
+</div>
+
+<!-- Flow diagram -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="text-muted text-uppercase small mb-3">Prior Auth Workflow</h6>
+    <div class="d-flex flex-wrap align-items-start gap-0">
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-primary px-3 py-2 fs-6">Provider Orders</div>
+        <div class="small text-muted mt-1">Service selected<br>in EHR</div>
+      </div>
+      <div class="text-muted fw-bold px-2 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-warning text-dark px-3 py-2 fs-6">CRD Hook</div>
+        <div class="small text-muted mt-1">Payer: auth<br>required?</div>
+      </div>
+      <div class="text-muted fw-bold px-2 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-info px-3 py-2 fs-6">DTR Form</div>
+        <div class="small text-muted mt-1">Auto-fill from<br>patient EHR</div>
+      </div>
+      <div class="text-muted fw-bold px-2 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-secondary px-3 py-2 fs-6">PAS Submit</div>
+        <div class="small text-muted mt-1">FHIR Claim<br>to payer</div>
+      </div>
+      <div class="text-muted fw-bold px-2 pt-2">→</div>
+
+      <div class="text-center px-3">
+        <div class="badge text-bg-success px-3 py-2 fs-6">Decision</div>
+        <div class="small text-muted mt-1">Approved /<br>Pended / Denied</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Step 1: CRD -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <strong>Step 1 — CRD: Does this service need prior auth?</strong>
+        <span class="badge text-bg-warning text-dark ms-2">POST /api/prior-auth/crd/</span>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">
+          The EHR fires a CDS Hooks <code>order-select</code> hook to the payer CRD service
+          when the provider selects an order. The payer responds with cards indicating
+          authorization requirements.
+        </p>
+        <div class="mb-2">
+          <label class="form-label small">Service Code (CPT)</label>
+          <select id="crd-code" class="form-select form-select-sm">
+            <option value="99213">99213 — Office visit (no auth needed)</option>
+            <option value="73721" selected>73721 — MRI joint (auth required)</option>
+            <option value="27447">27447 — Total knee replacement (auth required)</option>
+            <option value="93306">93306 — Echocardiography (auth required)</option>
+            <option value="90837">90837 — Psychotherapy (mental health parity)</option>
+          </select>
+        </div>
+        <button class="btn btn-sm btn-warning" onclick="runCRD()">Check Coverage Requirements</button>
+        <pre id="crd-result" class="bg-light border rounded p-3 small mt-3 mb-0" style="max-height:300px;overflow-y:auto;">(click Check)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: PAS -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <strong>Step 2 — PAS: Submit Prior Authorization</strong>
+        <span class="badge text-bg-secondary ms-2">POST /api/prior-auth/pas/</span>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">
+          Provider submits a FHIR Bundle (Claim resource + supporting docs).
+          Payer responds synchronously with approved / pended / denied.
+          Pended means more documentation is needed (triggers DTR).
+        </p>
+        <div class="mb-2">
+          <label class="form-label small">Patient ID</label>
+          <input id="pas-patient" class="form-control form-control-sm" value="10001">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Service Code (CPT)</label>
+          <select id="pas-code" class="form-select form-select-sm">
+            <option value="73721" selected>73721 — MRI joint</option>
+            <option value="27447">27447 — Total knee replacement</option>
+            <option value="93306">93306 — Echocardiography</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Clinical Notes</label>
+          <textarea id="pas-notes" class="form-control form-control-sm" rows="3"
+            placeholder="Patient has severe osteoarthritis with failed conservative treatment…"></textarea>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="runPAS()">Submit Prior Auth</button>
+        <pre id="pas-result" class="bg-light border rounded p-3 small mt-3 mb-0" style="max-height:300px;overflow-y:auto;">(click Submit)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- DTR explanation -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><strong>Step 3 — DTR: Documentation Templates and Rules</strong></div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+          <p class="small text-muted mb-2">
+            When PAS responds with <strong>pended</strong>, the payer provides a FHIR Questionnaire
+            that auto-populates from the patient's EHR data using CQL (Clinical Quality Language)
+            expressions. The provider reviews, completes gaps, and re-submits.
+          </p>
+          <p class="small text-muted">
+            DTR eliminates fax-based prior auth by replacing static PDF forms with
+            smart FHIR questionnaires that pre-fill from structured EHR data.
+          </p>
+        </div>
+        <div class="col-md-6">
+          <pre class="bg-light border rounded p-3 small mb-0" style="font-size:0.7rem;">{
+  "resourceType": "Questionnaire",
+  "id": "knee-replacement-pa",
+  "title": "Total Knee Replacement Prior Auth",
+  "item": [
+    {
+      "linkId": "1",
+      "text": "Has conservative treatment failed?",
+      "type": "boolean",
+      "extension": [{
+        "url": "cqf-expression",
+        "valueExpression": {
+          "language": "text/cql",
+          "expression": "ConservativeTreatmentFailed"
+        }
+      }]
+    }
+  ]
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info small mt-4">
+  <strong>Why this matters (2026):</strong>
+  CMS-0057-F requires payers to process prior auth requests within 72 hours for urgent
+  and 7 days for standard requests, and to provide real-time responses where possible.
+  FHIR-based CRD/PAS/DTR replaces phone calls and faxes — reducing the average prior
+  auth cycle from 3–5 days to minutes. Integration engineers build and maintain these
+  payer/provider integrations.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getCookie(name) {
+  for (const c of document.cookie.split(';')) {
+    const t = c.trim();
+    if (t.startsWith(name + '=')) return decodeURIComponent(t.slice(name.length + 1));
+  }
+  return null;
+}
+
+function runCRD() {
+  const code = document.getElementById('crd-code').value;
+  const el = document.getElementById('crd-result');
+  el.textContent = 'Calling payer CRD service…';
+
+  fetch('/api/prior-auth/crd/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify({
+      hook: 'order-select',
+      hookInstance: crypto.randomUUID(),
+      service_code: code,
+      context: {
+        patientId: '10001',
+        draftOrders: {
+          resourceType: 'Bundle',
+          entry: [{ resource: {
+            resourceType: 'ServiceRequest',
+            code: { coding: [{ system: 'http://www.ama-assn.org/go/cpt', code: code }] }
+          }}]
+        }
+      }
+    }),
+  })
+  .then(r => r.json())
+  .then(data => { el.textContent = JSON.stringify(data, null, 2); })
+  .catch(err => { el.textContent = 'Error: ' + err; });
+}
+
+function runPAS() {
+  const el = document.getElementById('pas-result');
+  el.textContent = 'Submitting to payer…';
+
+  fetch('/api/prior-auth/pas/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify({
+      patient_id: document.getElementById('pas-patient').value,
+      service_code: document.getElementById('pas-code').value,
+      diagnosis_code: 'M17.11',
+      clinical_notes: document.getElementById('pas-notes').value,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    const decision = data.decision;
+    const color = decision === 'approved' ? '✅' : decision === 'denied' ? '❌' : '⏳';
+    el.textContent = color + ' Decision: ' + decision.toUpperCase() + '\n\n' + JSON.stringify(data, null, 2);
+  })
+  .catch(err => { el.textContent = 'Error: ' + err; });
+}
+</script>
+{% endblock %}

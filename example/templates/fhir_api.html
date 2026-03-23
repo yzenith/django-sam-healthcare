@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}FHIR R4 REST API{% endblock %}
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <h1 class="mb-2">FHIR R4 REST API</h1>
+    <p class="text-muted">
+      Live read-only FHIR R4 endpoints backed by the messages in this demo.
+      All responses are <code>application/fhir+json</code>.
+      Try the requests below — they return real data from your seeded records.
+    </p>
+  </div>
+</div>
+
+<!-- Capability Statement -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>CapabilityStatement (metadata)</strong>
+    <span class="badge text-bg-secondary">GET /fhir/</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">Describes supported resources, search parameters, and security requirements (SMART on FHIR).</p>
+    <button class="btn btn-sm btn-outline-primary" onclick="tryFhir('/fhir/', 'result-metadata')">Try it</button>
+    <pre id="result-metadata" class="bg-light border rounded p-3 small mt-2 mb-0" style="max-height:300px;overflow-y:auto;">(click Try it)</pre>
+  </div>
+</div>
+
+<!-- Patient search -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Patient Search</strong>
+    <span class="badge text-bg-primary">GET /fhir/Patient/</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Returns a FHIR Bundle of all patients.
+      Supports <code>?identifier=MRN</code>, <code>?family=JONES</code>, <code>?_id=10001</code>.
+    </p>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="tryFhir('/fhir/Patient/', 'result-patient-all')">All patients</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/Patient/?identifier=10001', 'result-patient-all')">identifier=10001</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/Patient/?family=JOHNSON', 'result-patient-all')">family=JOHNSON</button>
+    </div>
+    <pre id="result-patient-all" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(click a button)</pre>
+  </div>
+</div>
+
+<!-- Patient read -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Patient Read</strong>
+    <span class="badge text-bg-primary">GET /fhir/Patient/{id}</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">Read a single patient by MRN (US Core identifier).</p>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="tryFhir('/fhir/Patient/10001/', 'result-patient-read')">10001 (JOHNSON)</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/Patient/10002/', 'result-patient-read')">10002 (GARCIA)</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/Patient/MISSING/', 'result-patient-read')">404 example</button>
+    </div>
+    <pre id="result-patient-read" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(click a button)</pre>
+  </div>
+</div>
+
+<!-- Encounter search -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Encounter Search</strong>
+    <span class="badge text-bg-info">GET /fhir/Encounter/</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">All encounters with PV1 segments. Filter by <code>?subject=Patient/10001</code>.</p>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="tryFhir('/fhir/Encounter/', 'result-encounter')">All encounters</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/Encounter/?subject=Patient/10001', 'result-encounter')">subject=10001</button>
+    </div>
+    <pre id="result-encounter" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(click a button)</pre>
+  </div>
+</div>
+
+<!-- DiagnosticReport -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>DiagnosticReport Search</strong>
+    <span class="badge text-bg-success">GET /fhir/DiagnosticReport/</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">Lab results from ORU R01 messages. Filter by <code>?subject=Patient/10001</code>.</p>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="tryFhir('/fhir/DiagnosticReport/', 'result-report')">All reports</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="tryFhir('/fhir/DiagnosticReport/?subject=Patient/10001', 'result-report')">subject=10001</button>
+    </div>
+    <pre id="result-report" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(click a button)</pre>
+  </div>
+</div>
+
+<!-- Learning note -->
+<div class="alert alert-info small mt-2">
+  <strong>Production difference:</strong>
+  These endpoints use session auth for the demo. In a production SMART on FHIR deployment,
+  each request would carry an OAuth2 Bearer token scoped to specific resources
+  (e.g. <code>patient/Patient.read</code>). See the
+  <a href="{% url 'smart-on-fhir' %}">SMART on FHIR</a> page for the full auth flow.
+  The <a href="{% url 'fhir-metadata' %}">CapabilityStatement</a> advertises these scopes.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function tryFhir(url, targetId) {
+  const el = document.getElementById(targetId);
+  el.textContent = "Loading…";
+  fetch(url, { headers: { "Accept": "application/fhir+json" } })
+    .then(r => r.json().then(data => ({ status: r.status, data })))
+    .then(({ status, data }) => {
+      el.textContent = `HTTP ${status}\n\n` + JSON.stringify(data, null, 2);
+    })
+    .catch(err => { el.textContent = "Error: " + err; });
+}
+</script>
+{% endblock %}

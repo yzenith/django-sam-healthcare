@@ -197,6 +197,8 @@ class WebhookDelivery(models.Model):
     duration_ms        = models.IntegerField(null=True, blank=True)
     attempt_count      = models.IntegerField(default=1)
     error_detail       = models.TextField(blank=True, default="")
+    next_retry_at      = models.DateTimeField(null=True, blank=True)
+    max_retries        = models.IntegerField(default=3)
 
     class Meta:
         ordering = ["-created_at"]

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Vercel build script for Django
+# NOTE: Vercel installs requirements.txt automatically via uv — do not duplicate here.
 set -e
-
-pip install -r requirements.txt
 
 python manage.py collectstatic --noinput
 python manage.py migrate --noinput

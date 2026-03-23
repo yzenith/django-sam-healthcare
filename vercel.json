@@ -1,6 +1,11 @@
 {
   "buildCommand": "bash build_files.sh",
+  "outputDirectory": "staticfiles",
   "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/$1"
+    },
     {
       "src": "/(.*)",
       "dest": "api/wsgi.py"

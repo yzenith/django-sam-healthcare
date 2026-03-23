@@ -22,9 +22,9 @@ class HL7MessageLog(models.Model):
     # Add an index for the ordering/filter pattern:
     class Meta:
         indexes = [
-            models.Index(fields=["-created_at"]),
-            models.Index(fields=["processing_status", "-created_at"]),
-            models.Index(fields=["message_type", "-created_at"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["processing_status", "created_at"]),
+            models.Index(fields=["message_type", "created_at"]),
         ]
 
     created_at = models.DateTimeField(auto_now_add=True)

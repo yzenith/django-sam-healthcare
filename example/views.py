@@ -111,6 +111,14 @@ def patient_import_page(request):
             "error": "Please choose a CSV file.",
         })
 
+    MAX_CSV_BYTES = 10 * 1024 * 1024  # 10 MB
+    if upload.size and upload.size > MAX_CSV_BYTES:
+        runs = PatientImportRun.objects.order_by("-created_at")[:20]
+        return render(request, "patient_import.html", {
+            "runs": runs,
+            "error": f"File too large ({upload.size // 1024 // 1024} MB). Maximum allowed is 10 MB.",
+        })
+
     run = PatientImportRun.objects.create(filename=upload.name, status=PatientImportRun.Status.RECEIVED)
 
     try:
@@ -275,27 +283,34 @@ def validate_mirth_jwt(request):
 
 
 def home(request):
+    from django.db.models import Count, Max
+
+    latest_logs = HL7MessageLog.objects.only(
+        "id", "created_at", "message_type", "processing_status", "patient_id", "trace_id"
+    ).order_by("-created_at")[:5]
     total = HL7MessageLog.objects.count()
-    latest_logs = HL7MessageLog.objects.order_by("-created_at")[:5]
 
-    trace_total = TraceLog.objects.count()
-    trace_errors = TraceLog.objects.filter(error_count__gt=0).count()
+    trace_agg = TraceLog.objects.aggregate(
+        trace_total=Count("id"),
+        trace_errors=Count("id", filter=Q(error_count__gt=0)),
+        latest_ts=Max("timestamp"),
+    )
+    trace_review_required = TraceLog.objects.filter(
+        Q(status="FAILED") | Q(error_count__gt=0) | Q(steps__status__in=["WARN", "ERROR"])
+    ).distinct().count()
 
-    review_required_qs = TraceLog.objects.filter(
-        Q(status="FAILED") |
-        Q(error_count__gt=0) |
-        Q(steps__status__in=["WARN", "ERROR"])
-    ).distinct()
-    trace_review_required = review_required_qs.count()
-
-    latest_trace = TraceLog.objects.order_by("-timestamp").first()
-    latest_trace_id = latest_trace.trace_id if latest_trace else None
+    latest_trace_id = None
+    if trace_agg["latest_ts"]:
+        latest_trace = TraceLog.objects.only("trace_id").filter(
+            timestamp=trace_agg["latest_ts"]
+        ).first()
+        latest_trace_id = latest_trace.trace_id if latest_trace else None
 
     return render(request, "home.html", {
         "total": total,
         "latest_logs": latest_logs,
-        "trace_total": trace_total,
-        "trace_errors": trace_errors,
+        "trace_total": trace_agg["trace_total"],
+        "trace_errors": trace_agg["trace_errors"],
         "trace_review_required": trace_review_required,
         "latest_trace_id": latest_trace_id,
     })
@@ -419,6 +434,7 @@ class MirthHL7View(APIView):
 
         body = request.body.decode("utf-8", errors="ignore").strip()
 
+        data = {}
         hl7_message = ""
         if request.content_type and "application/json" in request.content_type:
             try:
@@ -430,7 +446,10 @@ class MirthHL7View(APIView):
             hl7_message = body
 
         if not hl7_message.strip():
-            ...
+            return Response(
+                {"status": "failed", "trace_id": trace_id, "error": "Missing or empty hl7_message"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # 2) 初始化 steps（你截图里用到了 steps，但没定义）
         steps = []

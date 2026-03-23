@@ -1,5 +1,5 @@
 # app/hl7_utils.py
-from datetime import datetime
+from datetime import datetime, timezone
 
 ADT_EVENT_LABELS = {
     "A01": "Admission (Inpatient/ER → Admit)",
@@ -22,6 +22,41 @@ ADT_EVENT_REASON = {
 ORU_EVENT_REASON = {
     "R01": "Publish lab results: clinical review + charge capture",
 }
+
+def normalize_hl7(hl7_text: str) -> str:
+    """Normalize HL7 line endings to \\n."""
+    return (hl7_text or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def get_hl7_message_type(hl7_text: str) -> str:
+    """Extract MSH-9 message type (e.g. 'ADT^A01') from an HL7 message."""
+    for line in normalize_hl7(hl7_text).split("\n"):
+        if line.startswith("MSH"):
+            fields = line.split("|")
+            return fields[8] if len(fields) > 8 else ""
+    return ""
+
+
+def redact_hl7_basic(hl7_text: str) -> str:
+    """
+    Redact PII fields from a PID segment for safe logging.
+    Blanks: PID-5 (name), PID-7 (DOB), PID-11 (address).
+    """
+    lines = normalize_hl7(hl7_text).split("\n")
+    out = []
+    for line in lines:
+        if line.startswith("PID"):
+            fields = line.split("|")
+            if len(fields) > 5:
+                fields[5] = "***"
+            if len(fields) > 7:
+                fields[7] = "***"
+            if len(fields) > 11:
+                fields[11] = "***"
+            line = "|".join(fields)
+        out.append(line)
+    return "\n".join(out)
+
 
 def build_trigger_event(message_type: str) -> dict:
     parts = (message_type or "").split("^")
@@ -163,12 +198,16 @@ def extract_hl7_summary(hl7_text: str) -> dict:
         if segment == "MSH" and len(fields) > 8:
             summary["message_type"] = fields[8]
 
-            # MSH-7: Message Date/Time
+            # MSH-7: Message Date/Time (14-char YYYYMMDDHHMMSS, 12-char YYYYMMDDHHMM, or 8-char YYYYMMDD)
             if len(fields) > 6 and fields[6]:
-                try:
-                    summary["event_time"] = datetime.strptime(fields[6], "%Y%m%d%H%M%S")
-                except ValueError:
-                    pass
+                raw_dt = fields[6].strip()
+                for _fmt, _len in (("%Y%m%d%H%M%S", 14), ("%Y%m%d%H%M", 12), ("%Y%m%d", 8)):
+                    if len(raw_dt) >= _len:
+                        try:
+                            summary["event_time"] = datetime.strptime(raw_dt[:_len], _fmt).replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            continue
 
         # PID|...|PID-3 Patient Identifier
         elif segment == "PID":
@@ -183,10 +222,14 @@ def extract_hl7_summary(hl7_text: str) -> dict:
 
             # PV1-44 Admit Date/Time (preferred over MSH-7 if present)
             if len(fields) > 44 and fields[44]:
-                try:
-                    summary["event_time"] = datetime.strptime(fields[44], "%Y%m%d%H%M%S")
-                except ValueError:
-                    pass
+                raw_dt = fields[44].strip()
+                for _fmt, _len in (("%Y%m%d%H%M%S", 14), ("%Y%m%d%H%M", 12), ("%Y%m%d", 8)):
+                    if len(raw_dt) >= _len:
+                        try:
+                            summary["event_time"] = datetime.strptime(raw_dt[:_len], _fmt).replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            continue
 
     return summary
 
@@ -302,11 +345,10 @@ def hl7_to_fhir_patient(segments):
     family = name_components[0] if len(name_components) > 0 else ""
     given = name_components[1] if len(name_components) > 1 else ""
 
-    # PID-7 Birth Date
-    birth_raw = get(7)
+    # PID-7 Birth Date (YYYYMMDD → YYYY-MM-DD)
+    birth_raw = get(7).strip()
     birth_date = None
-    if birth_raw:
-        # YYYYMMDD -> YYYY-MM-DD
+    if len(birth_raw) >= 8:
         birth_date = f"{birth_raw[0:4]}-{birth_raw[4:6]}-{birth_raw[6:8]}"
 
     # PID-8 Gender
@@ -377,12 +419,16 @@ def hl7_to_fhir_encounter(segments, patient_id: str = None):
     loc_comp = loc_raw.split('^') if loc_raw else []
     loc_display = "^".join(loc_comp) if loc_comp else None
 
-    # PV1-44 Admit Date/Time (YYYYMMDDHHMM)
-    admit_raw = get(44)
+    # PV1-44 Admit Date/Time (YYYYMMDDHHMMSS or YYYYMMDDHHMM)
+    admit_raw = get(44).strip()
     start_iso = None
-    if admit_raw and len(admit_raw) >= 12:
-        dt = datetime.strptime(admit_raw[:12], "%Y%m%d%H%M")
-        start_iso = dt.isoformat()
+    for _fmt, _len in (("%Y%m%d%H%M%S", 14), ("%Y%m%d%H%M", 12)):
+        if len(admit_raw) >= _len:
+            try:
+                start_iso = datetime.strptime(admit_raw[:_len], _fmt).replace(tzinfo=timezone.utc).isoformat()
+                break
+            except ValueError:
+                continue
 
     encounter = {
         "resourceType": "Encounter",

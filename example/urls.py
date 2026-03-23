@@ -32,6 +32,10 @@ urlpatterns = [
         ),
         name="case-study-incident-001",
     ),
+    path("error-catalog/", TemplateView.as_view(template_name="error_catalog.html"), name="error-catalog"),
+    path("case-studies/", TemplateView.as_view(template_name="case_studies/index.html"), name="case-studies-index"),
+    path("case-studies/incident-002/", TemplateView.as_view(template_name="case_studies/incident_002.html"), name="case-study-incident-002"),
+
 
 
 

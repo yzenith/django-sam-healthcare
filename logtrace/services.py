@@ -1,3 +1,4 @@
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -50,7 +51,6 @@ def _parse_preview(input_type: str, raw_payload: str) -> Tuple[Dict[str, Any], L
 
     try:
         if input_type == "JSON":
-            import json
             obj = json.loads(raw_payload)
             if isinstance(obj, dict):
                 preview = {"type": "JSON", "keys": list(obj.keys())[:20]}

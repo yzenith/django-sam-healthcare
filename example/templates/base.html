@@ -41,52 +41,38 @@
         <!-- Overview -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'overview' %}active{% endif %}"
-            href="{% url 'overview' %}">
-            Overview
+             href="{% url 'overview' %}">Overview</a>
+        </li>
+
+        <!-- Pipeline dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle
+               {% if request.resolver_match.url_name in 'hl7-playground,mirth-messages,mirth-message-detail,trace-ingest-page,patient-import' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Pipeline
           </a>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li><a class="dropdown-item" href="{% url 'hl7-playground' %}">HL7 Playground</a></li>
+            <li><a class="dropdown-item" href="{% url 'mirth-messages' %}">Mirth Live Feed</a></li>
+            <li><a class="dropdown-item" href="{% url 'trace-ingest-page' %}">Trace Ingest</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'patient-import' %}">CSV Import</a></li>
+          </ul>
         </li>
 
-
-        <!-- HL7 Playground -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'hl7-playground' %}active{% endif %}"
-             href="{% url 'hl7-playground' %}">HL7 Playground</a>
-        </li>
-
-        <!-- CSV Import -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'patient-import' %}active{% endif %}"
-            href="{% url 'patient-import' %}">CSV Import</a>
-        </li>
-
-        <!-- Mirth Live Feed -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'mirth-messages' %}active{% endif %}"
-             href="{% url 'mirth-messages' %}">Mirth Live Feed</a>
-        </li>
-
-        <!-- Claim Reconciliation -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'claim-reconciliation' %}active{% endif %}"
-             href="{% url 'claim-reconciliation' %}">Claims</a>
-        </li>
-
-        <!-- Webhook Log -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'webhook-log' %}active{% endif %}"
-             href="{% url 'webhook-log' %}">Webhooks</a>
-        </li>
-
-        <!-- Trace Logs -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'trace-logs-page' %}active{% endif %}"
-             href="{% url 'trace-logs-page' %}">Trace Logs</a>
-        </li>
-
-        <!-- Trace Ingest -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'trace-ingest-page' %}active{% endif %}"
-            href="{% url 'trace-ingest-page' %}">Trace Ingest</a>
+        <!-- Operations dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle
+               {% if request.resolver_match.url_name in 'trace-logs-page,claim-reconciliation,webhook-log' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Operations
+          </a>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li><a class="dropdown-item" href="{% url 'trace-logs-page' %}">Trace Logs</a></li>
+            <li><a class="dropdown-item" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a></li>
+            <li><a class="dropdown-item" href="{% url 'claim-reconciliation' %}">Claims</a></li>
+            <li><a class="dropdown-item" href="{% url 'webhook-log' %}">Webhooks</a></li>
+          </ul>
         </li>
 
       </ul>
@@ -106,27 +92,6 @@
     </div>
   </div>
 </nav>
-
-<!-- Integration Flow Bar -->
-<div class="container mb-3">
-  <div class="d-flex flex-wrap gap-2 align-items-center">
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'hl7-playground' %}">HL7 Intake</a>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'mirth-messages' %}">Interface Engine</a>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Ingest</a>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-logs-page' %}">Trace Logs</a>
-    <a class="btn btn-sm btn-outline-danger" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'patient-import' %}">CSV Reconcile</a>
-
-    {% if request.session.last_trace_id %}
-      <span class="ms-auto small text-muted">
-        Last Trace:
-        <a href="{% url 'trace-detail-page' trace_id=request.session.last_trace_id %}">
-          {{ request.session.last_trace_id }}
-        </a>
-      </span>
-    {% endif %}
-  </div>
-</div>
 
 
 <main class="container pb-5">

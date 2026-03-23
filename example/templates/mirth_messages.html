@@ -3,125 +3,164 @@
 {% block title %}Mirth Live Feed – Recent HL7 Messages{% endblock %}
 
 {% block content %}
-  <div class="row mb-4">
-    <div class="col-lg-8">
-      <h1 class="mb-2">Mirth Live Feed</h1>
-      <p class="text-muted mb-0">
-        Recent HL7 messages received from <strong>Mirth Connect</strong> and logged
-        through the Django API. Click a row to inspect the full HL7 payload and
-        related FHIR / X12 artifacts.
-      </p>
-    </div>
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <h1 class="mb-2">Mirth Live Feed</h1>
+    <p class="text-muted mb-0">
+      Recent HL7 messages received from <strong>Mirth Connect</strong> channels and logged
+      through the Django API. Click a row to inspect the full HL7 payload and
+      related FHIR / X12 artifacts.
+    </p>
   </div>
+</div>
 
-  <!-- Summary cards (optional, but looks very "dashboard") -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="text-muted text-uppercase small mb-2">Total Messages</h6>
-          <div class="fs-4 fw-semibold">{{ logs|length }}</div>
-          <div class="small text-muted">Stored in Neon Postgres</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- With Encounter (placeholder for now) -->
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="text-muted text-uppercase small mb-2">With Encounter</h6>
-          <div class="fs-4 fw-semibold">
-            —  {# placeholder, we removed the buggy expression #}
-          </div>
-          <div class="small text-muted">Parsed encounter segments (PV1)</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="text-muted text-uppercase small mb-2">From Mirth</h6>
-          <div class="fs-4 fw-semibold">HTTP Channel</div>
-          <div class="small text-muted">Secured by JWT (demo)</div>
-        </div>
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-2">
+    <div class="card h-100 text-center">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.total|default:0 }}</div>
+        <div class="small text-muted">Total</div>
       </div>
     </div>
   </div>
+  <div class="col-md-2">
+    <div class="card h-100 text-center border-success">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">{{ totals.transformed|default:0 }}</div>
+        <div class="small text-muted">Transformed</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card h-100 text-center border-danger">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-danger">{{ totals.failed|default:0 }}</div>
+        <div class="small text-muted">Failed</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 text-center">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.with_encounter|default:0 }}</div>
+        <div class="small text-muted">With Encounter (PV1)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 text-center">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.with_x12|default:0 }}</div>
+        <div class="small text-muted">With X12 837</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-  <!-- Messages table -->
-  <div class="card">
-    <div class="card-body">
-      <h5 class="card-title mb-3">Recent HL7 Messages</h5>
+<!-- Filters -->
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+  <span class="text-muted small">Status:</span>
+  <a href="{% url 'mirth-messages' %}{% if current_type %}?type={{ current_type }}{% endif %}"
+     class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for value, label in status_choices %}
+  <a href="{% url 'mirth-messages' %}?status={{ value }}{% if current_type %}&type={{ current_type }}{% endif %}"
+     class="btn btn-sm {% if current_status == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
 
-      <div class="table-responsive">
+  <form method="get" action="{% url 'mirth-messages' %}" class="ms-3 d-flex gap-1">
+    {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+    <input type="text" name="type" value="{{ current_type }}" placeholder="Filter by type…"
+           class="form-control form-control-sm" style="width:160px;">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>
+    {% if current_type or current_status or current_trace %}
+      <a href="{% url 'mirth-messages' %}" class="btn btn-sm btn-outline-danger">Clear</a>
+    {% endif %}
+  </form>
+</div>
 
-        <!-- apply cache -->
-        {% load cache %}
-        {% cache 30 "mirth_messages_table" request.GET.status request.GET.type %}
-        <table class="table align-middle mb-0">
-          <thead class="table-light">
+<!-- Messages table -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      {% load cache %}
+      {% cache 30 "mirth_messages_table" current_status current_type current_trace %}
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Error Category</th>
+            <th>Patient ID</th>
+            <th>Encounter</th>
+            <th>X12</th>
+            <th>HL7 Preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
             <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Type</th>
-              <th scope="col">Patient ID</th>
-              <th scope="col">Encounter?</th>
-              <th scope="col">837 Length</th>
-              <th scope="col">HL7 (preview)</th>
+              <td class="small text-nowrap">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td>
+                <span class="badge bg-primary-subtle text-primary-emphasis">
+                  {{ log.message_profile|default:log.message_type }}
+                </span>
+              </td>
+              <td>
+                {% if log.processing_status == "TRANSFORMED" %}
+                  <span class="badge text-bg-success">Transformed</span>
+                {% elif log.processing_status == "FAILED" %}
+                  <span class="badge text-bg-danger">Failed</span>
+                {% elif log.processing_status == "PENDING" %}
+                  <span class="badge text-bg-warning text-dark">Pending</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">{{ log.processing_status }}</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if log.error_category and log.error_category != "NONE" %}
+                  <span class="badge text-bg-warning text-dark">{{ log.error_category }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ log.patient_id|default:"—" }}</td>
+              <td class="text-center">
+                {% if log.encounter_present %}
+                  <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis">No</span>
+                {% endif %}
+              </td>
+              <td class="small text-center">
+                {% if log.x12_length %}
+                  <span class="text-success">{{ log.x12_length }}c</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                <a href="{% url 'mirth-message-detail' log.pk %}" class="text-decoration-none font-monospace">
+                  {{ log.raw_hl7|truncatechars:80 }}
+                </a>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            
-
-            {% for log in logs %}
-              <tr>
-                <td class="small text-nowrap">
-                  {{ log.created_at|date:"Y-m-d H:i:s" }}
-                </td>
-                <td>
-                  <span class="badge bg-primary-subtle text-primary-emphasis">
-                    {{ log.message_profile|default:log.message_type }}
-                  </span>
-                </td>
-                <td class="small">
-                  {{ log.patient_id|default:"—" }}
-                </td>
-                <td>
-                  {% if log.encounter_present %}
-                    <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
-                  {% else %}
-                    <span class="badge bg-secondary-subtle text-secondary-emphasis">No</span>
-                  {% endif %}
-                </td>
-                <td class="small">
-                  {% if log.x12_length %}
-                    {{ log.x12_length }} chars
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-                <td class="small">
-                  <a href="{% url 'mirth-message-detail' log.pk %}" class="text-decoration-none">
-                    {{ log.raw_hl7|truncatechars:100 }}
-                  </a>
-                </td>
-              </tr>
-              
-
-            {% empty %}
-              <tr>
-                <td colspan="6" class="text-center text-muted py-4">
-                  No messages yet. Configure your Mirth channel to POST HL7
-                  messages to the demo endpoint.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% endcache %}
-      </div>
-
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">
+                No messages yet.
+                <a href="{% url 'home' %}">Seed demo data</a> or send an HL7 message via the
+                <a href="{% url 'hl7-playground' %}">Playground</a>.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endcache %}
     </div>
   </div>
+</div>
 {% endblock %}

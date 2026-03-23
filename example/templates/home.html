@@ -44,6 +44,70 @@
   </div>
 </div>
 
+<!-- Login hint for unauthenticated visitors -->
+{% if not user.is_authenticated %}
+<div class="row mb-3">
+  <div class="col-lg-10">
+    <div class="alert alert-primary d-flex align-items-center gap-3 py-2 mb-0">
+      <span>
+        Sign in to explore the full demo — Mirth Feed, Claims, Trace Logs, and Webhooks.
+        Credentials: <code>demo</code> / <code>demo1234</code>
+      </span>
+      <a href="{% url 'login' %}" class="btn btn-sm btn-primary ms-auto text-nowrap">Sign In</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Pipeline Diagram -->
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <div class="card">
+      <div class="card-body py-3">
+        <h6 class="text-muted text-uppercase small mb-3">Integration Pipeline</h6>
+        <div class="d-flex flex-wrap align-items-center gap-0">
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-primary fs-6 px-3 py-2">EHR / Mirth</div>
+            <div class="small text-muted mt-1">HL7 v2 source</div>
+          </div>
+          <div class="text-muted fw-bold px-1">→</div>
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-secondary fs-6 px-3 py-2">Validate</div>
+            <div class="small text-muted mt-1">MSH · PID · PV1</div>
+          </div>
+          <div class="text-muted fw-bold px-1">→</div>
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-info fs-6 px-3 py-2">FHIR R4</div>
+            <div class="small text-muted mt-1">Patient · Encounter</div>
+          </div>
+          <div class="text-muted fw-bold px-1">→</div>
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-warning text-dark fs-6 px-3 py-2">X12 837</div>
+            <div class="small text-muted mt-1">Claim submission</div>
+          </div>
+          <div class="text-muted fw-bold px-1">→</div>
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-success fs-6 px-3 py-2">X12 835</div>
+            <div class="small text-muted mt-1">Remittance / ERA</div>
+          </div>
+          <div class="text-muted fw-bold px-1">→</div>
+
+          <div class="text-center px-3">
+            <div class="badge text-bg-danger fs-6 px-3 py-2">ACK + Trace</div>
+            <div class="small text-muted mt-1">Audit · Reconcile</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Why this matters -->
 <div class="row mb-4">
   <div class="col-lg-10">
@@ -63,7 +127,7 @@
 <div class="row mb-4">
   <div class="col-lg-10">
     <div class="card">
-      <div class="card-body d-flex flex-wrap gap-2">
+      <div class="card-body d-flex flex-wrap gap-2 align-items-center">
         <span class="badge text-bg-secondary">HL7 logs: {{ total }}</span>
         <span class="badge text-bg-secondary">Trace logs: {{ trace_total }}</span>
         <span class="badge text-bg-danger">Trace errors: {{ trace_errors }}</span>
@@ -71,6 +135,31 @@
         {% if latest_trace_id %}
           <span class="badge text-bg-primary">Latest Trace: {{ latest_trace_id }}</span>
         {% endif %}
+
+        {% if messages %}
+          {% for msg in messages %}
+            <span class="badge text-bg-{{ msg.tags|default:'info' }}">{{ msg }}</span>
+          {% endfor %}
+        {% endif %}
+
+        <div class="ms-auto d-flex gap-2">
+          {% if total == 0 %}
+            <form method="post" action="{% url 'seed-demo-data' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-success">
+                Seed Demo Data
+              </button>
+            </form>
+          {% else %}
+            <form method="post" action="{% url 'seed-demo-data' %}">
+              {% csrf_token %}
+              <input type="hidden" name="clear" value="1">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">
+                Reset Demo Data
+              </button>
+            </form>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

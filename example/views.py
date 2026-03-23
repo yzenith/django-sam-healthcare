@@ -331,7 +331,8 @@ def hl7_playground(request):
 
 @login_required
 def mirth_messages(request):
-    # logs = HL7MessageLog.objects.order_by("-created_at")[:20]
+    from django.db.models import Count
+
     qs = HL7MessageLog.objects.order_by("-created_at")
 
     status_q = request.GET.get("status")
@@ -342,8 +343,32 @@ def mirth_messages(request):
     if type_q:
         qs = qs.filter(message_type__icontains=type_q)
 
+    trace_q = request.GET.get("trace_id")
+    if trace_q:
+        qs = qs.filter(trace_id__icontains=trace_q)
+
     logs = qs[:50]
-    return render(request, "mirth_messages.html", {"logs": logs})
+
+    # Aggregate metrics over the full unfiltered table
+    all_logs = HL7MessageLog.objects
+    totals = all_logs.aggregate(
+        total=Count("id"),
+        with_encounter=Count("id", filter=Q(encounter_present=True)),
+        transformed=Count("id", filter=Q(processing_status=HL7MessageLog.ProcessingStatus.TRANSFORMED)),
+        failed=Count("id", filter=Q(processing_status=HL7MessageLog.ProcessingStatus.FAILED)),
+        with_x12=Count("id", filter=Q(has_x12=True)),
+    )
+
+    status_choices = HL7MessageLog.ProcessingStatus.choices
+
+    return render(request, "mirth_messages.html", {
+        "logs": logs,
+        "totals": totals,
+        "status_choices": status_choices,
+        "current_status": status_q or "",
+        "current_type": type_q or "",
+        "current_trace": trace_q or "",
+    })
     
 
 @login_required
@@ -446,6 +471,9 @@ class HL7TransformView(APIView):
             return Response({"error": "Invalid HL7 message"}, status=400)
 
         result = hl7_to_all(hl7_message)
+        errors, _ = validate_hl7_message(hl7_message)
+        ack_code = "AE" if errors else "AA"
+        result["ack"] = generate_ack(hl7_message, ack_code=ack_code)
         return Response(result, status=status.HTTP_200_OK)
 
 
@@ -768,6 +796,33 @@ def claim_reconciliation_report(request):
         "status_choices": ClaimRecord.ClaimStatus.choices,
         "current_status": status_filter,
     })
+
+
+@login_required
+def seed_demo_data_view(request):
+    """
+    POST /seed-demo-data/          — seed demo records
+    POST /seed-demo-data/?clear=1  — wipe SEED records then re-seed
+    Redirects to home with a Django messages flash.
+    """
+    from django.contrib import messages
+    from example.seed_demo import seed_demo_data
+
+    if request.method != "POST":
+        return redirect("home")
+
+    clear = request.POST.get("clear") == "1"
+    result = seed_demo_data(clear_existing=clear)
+
+    if result.get("skipped"):
+        messages.info(request, result["reason"])
+    else:
+        messages.success(
+            request,
+            f"Demo data seeded: {result['messages']} messages, "
+            f"{result['claims']} claims, {result['webhooks']} webhooks.",
+        )
+    return redirect("home")
 
 
 def health(request):

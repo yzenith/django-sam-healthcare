@@ -3,7 +3,7 @@ from django import views
 from django.views.generic import TemplateView
 
 from django.urls import path
-from example.views import hl7_playground, HL7TransformView, MirthHL7View, mirth_message_detail, mirth_messages, home, patient_import_detail, patient_import_page, patient_import_rejects_csv, health, claim_reconciliation_report, webhook_delivery_log
+from example.views import hl7_playground, HL7TransformView, MirthHL7View, mirth_message_detail, mirth_messages, home, patient_import_detail, patient_import_page, patient_import_rejects_csv, health, claim_reconciliation_report, webhook_delivery_log, seed_demo_data_view
 
 
 urlpatterns = [
@@ -17,6 +17,7 @@ urlpatterns = [
     path("mirth/messages/<int:pk>/", mirth_message_detail, name="mirth-message-detail"),
     path("mirth/claims/reconciliation/", claim_reconciliation_report, name="claim-reconciliation"),
     path("webhooks/", webhook_delivery_log, name="webhook-log"),
+    path("seed-demo-data/", seed_demo_data_view, name="seed-demo-data"),
     path("import/patients/", patient_import_page, name="patient-import"),
     path("import/patients/<int:pk>/", patient_import_detail, name="patient-import-detail"),
     path("import/patients/<int:pk>/rejects.csv", patient_import_rejects_csv, name="patient-import-rejects-csv"),

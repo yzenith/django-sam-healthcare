@@ -1,186 +1,224 @@
 {% extends "base.html" %}
 
-{% block title %}HL7 v2 → FHIR → X12 837 Playground{% endblock %}
+{% block title %}HL7 v2 Playground{% endblock %}
 
 {% block content %}
-{% csrf_token %}
-  <div class="row mb-4">
-    <div class="col-lg-10">
-      <h1 class="mb-3">HL7 v2 → FHIR → X12 837 Playground</h1>
-      <p class="text-muted">
-        Paste an HL7 v2 ADT/ORU message below. The API will convert it into FHIR
-        <strong>Patient</strong> / <strong>Encounter</strong> / <strong>DiagnosticReport</strong>
-        / <strong>Observations</strong>, and generate a simplified
-        <strong>X12 837</strong> claim.
-      </p>
-    </div>
+<div class="row mb-4">
+  <div class="col-lg-10">
+    <h1 class="mb-2">HL7 v2 Playground</h1>
+    <p class="text-muted">
+      Paste an HL7 v2 message below, or pick a sample from the dropdown.
+      The API validates, transforms, and returns
+      <strong>FHIR R4</strong> resources and (for ADT) a
+      <strong>X12 837</strong> claim.
+      Supported types: ADT (A01/A03/A04/A08), ORU R01, ORM O01, MDM T02, SIU S12/S15.
+    </p>
   </div>
+</div>
 
-  <div class="row g-4">
-    <!-- Input card -->
-    <div class="col-12">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Step 1: Paste HL7 v2 Message</h5>
-          <p class="card-text small text-muted mb-2">
-            You can paste a single HL7 ADT/ORU message here. In the future this
-            page can be extended to support HL7 batches (multiple messages).
-          </p>
-          <textarea id="hl7-input"
-                    class="form-control font-monospace"
-                    rows="10">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
+<div class="row g-4">
+  <!-- Input card -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="card-title mb-0">Step 1: Paste or pick an HL7 v2 Message</h5>
+          <select id="sample-picker" class="form-select form-select-sm" style="width:auto;">
+            <option value="">— Load a sample —</option>
+            <option value="adt_a01">ADT A01 – Inpatient Admission</option>
+            <option value="adt_a03">ADT A03 – Discharge</option>
+            <option value="adt_a04">ADT A04 – ER Registration</option>
+            <option value="oru_r01">ORU R01 – Lab Results</option>
+            <option value="orm_o01">ORM O01 – Lab Order</option>
+            <option value="mdm_t02">MDM T02 – Consultation Note</option>
+            <option value="siu_s12">SIU S12 – New Appointment</option>
+            <option value="siu_s15">SIU S15 – Cancelled Appointment</option>
+          </select>
+        </div>
+        <textarea id="hl7-input" class="form-control font-monospace" rows="10">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
 PID|1||123456^^^HOSP^MR||DOE^JOHN||19900520|M|||789 PINE ST^^ALLEN^TX^75013
 PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
-          <button id="btn-transform" class="btn btn-primary mt-3">
-            Transform HL7
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- FHIR Patient -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title">FHIR Patient</h5>
-          <pre id="patient-json"
-               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- FHIR Encounter -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title">FHIR Encounter</h5>
-          <pre id="encounter-json"
-               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- FHIR DiagnosticReport (ORU) -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title">FHIR DiagnosticReport (ORU)</h5>
-          <pre id="report-json"
-               class="bg-light border rounded p-3 small mb-0">(ORU results will appear here)</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- FHIR Observations (ORU) -->
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title">FHIR Observations (ORU)</h5>
-          <pre id="obs-json"
-               class="bg-light border rounded p-3 small mb-0">(ORU results will appear here)</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- X12 837 -->
-    <div class="col-12">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Generated X12 837 Claim</h5>
-          <pre id="x12-837"
-               class="bg-light border rounded p-3 small mb-0">(Results will appear here)</pre>
-        </div>
+        <button id="btn-transform" class="btn btn-primary mt-3">Transform HL7</button>
+        <span id="transform-spinner" class="ms-2 d-none">
+          <span class="spinner-border spinner-border-sm" role="status"></span> Processing…
+        </span>
       </div>
     </div>
   </div>
+
+  <!-- FHIR Patient -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Patient</h5>
+        <pre id="patient-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FHIR Encounter -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Encounter</h5>
+        <pre id="encounter-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FHIR DiagnosticReport (ORU) -->
+  <div class="col-md-6" id="panel-report">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR DiagnosticReport <span class="badge text-bg-secondary small">ORU</span></h5>
+        <pre id="report-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FHIR Observations (ORU) -->
+  <div class="col-md-6" id="panel-obs">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Observations <span class="badge text-bg-secondary small">ORU</span></h5>
+        <pre id="obs-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FHIR Appointment (SIU) -->
+  <div class="col-md-6" id="panel-appointment">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR Appointment <span class="badge text-bg-secondary small">SIU</span></h5>
+        <pre id="appointment-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(SIU results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FHIR ServiceRequest (ORM) -->
+  <div class="col-md-6" id="panel-service-request">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">FHIR ServiceRequest <span class="badge text-bg-secondary small">ORM</span></h5>
+        <pre id="service-request-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORM results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- X12 837 -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Generated X12 837 Claim <span class="badge text-bg-secondary small">ADT</span></h5>
+        <pre id="x12-837" class="bg-light border rounded p-3 small mb-0" style="max-height:200px;overflow-y:auto;">(ADT results will appear here)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACK -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">HL7 ACK Response</h5>
+        <pre id="ack-result" class="bg-light border rounded p-3 small mb-0">(ACK will appear here)</pre>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + "=")) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
+const SAMPLES = {
+  adt_a01: `MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260115090000||ADT^A01|ADT001|P|2.5\rPID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F|||100 MAIN ST^^DALLAS^TX^75201\rPV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||ADM|||20260115090000`,
+  adt_a03: `MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260115150000||ADT^A03|ADT002|P|2.5\rPID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\rPV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||||20260115090000`,
+  adt_a04: `MSH|^~\\&|CERNER|RIVERSIDE_MED|MIRTH|FACILITY|20260115093000||ADT^A04|ADT003|P|2.5\rPID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M|||456 OAK AVE^^IRVING^TX^75062\rPV1|1|E|ER^E01^1||||3001^DAVIS^SARAH|||EM`,
+  oru_r01: `MSH|^~\\&|LAB_SYS|MEMORIAL_HOSP|EHR|FACILITY|20260115120000||ORU^R01|ORU001|P|2.5\rPID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\rOBR|1||LAB001|1558-6^Hemoglobin^LN|||20260115120000\rOBX|1|NM|1558-6^Hemoglobin^LN||13.5|g/dL|12.0-16.0|N\rOBX|2|NM|787-2^MCV^LN||88|fL|80-100|N`,
+  orm_o01: `MSH|^~\\&|ORDERENTRY|MEMORIAL_HOSP|LAB|FACILITY|20260115140000||ORM^O01|ORM001|P|2.5\rPID|1||10003^^^MRN||CHEN^LI||19900810|F\rORC|NW|ORD001|||||||20260115140000\rOBR|1|ORD001||55231-5^Basic metabolic panel^LN||R|20260115150000`,
+  mdm_t02: `MSH|^~\\&|EHR_DOC|MEMORIAL_HOSP|CDMS|FACILITY|20260115160000||MDM^T02|MDM001|P|2.5\rPID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\rEVN|T02|20260115160000\rTXA|1|11488-4^Consultation note^LN||20260115160000||||||||DOC001||||||AU`,
+  siu_s12: `MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|20260116090000||SIU^S12|SIU001|P|2.5\rSCH|APT001|FIL001|||||||30||^^^20260120090000||||||||||||||Pending\rPID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M\rAIS|1||40701008^Cardiology consultation^SCT\rAIP|1||2001^SMITH^ROBERT`,
+  siu_s15: `MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|20260116110000||SIU^S15|SIU002|P|2.5\rSCH|APT002|FIL002|||||||60||^^^20260120140000||||||||||||||Cancelled\rPID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\rAIS|1||40701008^Cardiology consultation^SCT`,
+};
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== "") {
+    for (const cookie of document.cookie.split(";")) {
+      const c = cookie.trim();
+      if (c.startsWith(name + "=")) {
+        cookieValue = decodeURIComponent(c.substring(name.length + 1));
+        break;
       }
     }
-    return cookieValue;
   }
+  return cookieValue;
+}
 
-  $(function () {
-    // Ensure every non-GET AJAX includes CSRF header
-    $.ajaxSetup({
-      beforeSend: function (xhr, settings) {
-        const isSafeMethod = /^(GET|HEAD|OPTIONS|TRACE)$/.test(settings.type);
-        if (!isSafeMethod) {
-          xhr.setRequestHeader("X-CSRFToken", getCookie("csrftoken"));
-        }
+$(function () {
+  // CSRF for all non-GET requests
+  $.ajaxSetup({
+    beforeSend: function (xhr, settings) {
+      if (!/^(GET|HEAD|OPTIONS|TRACE)$/.test(settings.type)) {
+        xhr.setRequestHeader("X-CSRFToken", getCookie("csrftoken"));
+      }
+    }
+  });
+
+  // Sample picker
+  $("#sample-picker").on("change", function () {
+    const key = $(this).val();
+    if (key && SAMPLES[key]) {
+      $("#hl7-input").val(SAMPLES[key].replace(/\\r/g, "\r"));
+    }
+  });
+
+  // Transform button
+  $("#btn-transform").on("click", function () {
+    const hl7 = $("#hl7-input").val();
+
+    // Clear previous results
+    $("#patient-json").text("(Results will appear here)");
+    $("#encounter-json").text("(Results will appear here)");
+    $("#x12-837").text("(ADT results will appear here)");
+    $("#report-json").text("(ORU results will appear here)");
+    $("#obs-json").text("(ORU results will appear here)");
+    $("#appointment-json").text("(SIU results will appear here)");
+    $("#service-request-json").text("(ORM results will appear here)");
+    $("#ack-result").text("(ACK will appear here)");
+
+    $("#transform-spinner").removeClass("d-none");
+    $("#btn-transform").prop("disabled", true);
+
+    $.ajax({
+      url: "{% url 'hl7-transform' %}",
+      method: "POST",
+      contentType: "application/json",
+      dataType: "json",
+      data: JSON.stringify({ hl7_message: hl7 }),
+
+      success: function (data) {
+        if (data.patient)       $("#patient-json").text(JSON.stringify(data.patient, null, 2));
+        if (data.encounter)     $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
+        if (data.x12_837)       $("#x12-837").text(data.x12_837);
+        if (data.report)        $("#report-json").text(JSON.stringify(data.report, null, 2));
+        if (data.observations)  $("#obs-json").text(JSON.stringify(data.observations, null, 2));
+        if (data.appointment)   $("#appointment-json").text(JSON.stringify(data.appointment, null, 2));
+        if (data.service_request) $("#service-request-json").text(JSON.stringify(data.service_request, null, 2));
+        if (data.ack)           $("#ack-result").text(data.ack);
+      },
+
+      error: function (xhr) {
+        const msg = "Error: " + (xhr.responseJSON?.detail || xhr.responseText || xhr.statusText);
+        $("#patient-json").text(msg);
+      },
+
+      complete: function () {
+        $("#transform-spinner").addClass("d-none");
+        $("#btn-transform").prop("disabled", false);
       }
     });
-
-    $("#btn-transform").on("click", function () {
-      const hl7 = $("#hl7-input").val();
-
-      $.ajax({
-        url: "{% url 'hl7-transform' %}",
-        method: "POST",
-        contentType: "application/json",
-        data: JSON.stringify({ hl7_message: hl7 }),
-        success: function (data) { /* existing code */ },
-        error: function (xhr) {
-          alert("Error: " + (xhr.responseText || xhr.statusText));
-        }
-      });
-    });
   });
-
-
-  $(function () {
-    $("#btn-transform").on("click", function () {
-      const hl7 = $("#hl7-input").val();
-
-      // Clear all previous results
-      $("#patient-json").text("(Results will appear here)");
-      $("#encounter-json").text("(Results will appear here)");
-      $("#x12-837").text("(Results will appear here)");
-      $("#report-json").text("(ORU results will appear here)");
-      $("#obs-json").text("(ORU results will appear here)");
-
-      $.ajax({
-        url: "{% url 'hl7-transform' %}",
-        method: "POST",
-        contentType: "application/json",
-        dataType: "json",
-        data: JSON.stringify({ hl7_message: hl7 }),
-
-        success: function (data) {
-          if (data.patient) {
-            $("#patient-json").text(JSON.stringify(data.patient, null, 2));
-          }
-          if (data.encounter) {
-            $("#encounter-json").text(JSON.stringify(data.encounter, null, 2));
-          }
-          if (data.x12_837) {
-            $("#x12-837").text(data.x12_837);
-          }
-          if (data.report) {
-            $("#report-json").text(JSON.stringify(data.report, null, 2));
-          }
-          if (data.observations) {
-            $("#obs-json").text(JSON.stringify(data.observations, null, 2));
-          }
-        },
-
-        error: function (xhr) {
-          alert("Error: " + (xhr.responseText || xhr.statusText));
-        }
-      });
-    });
-  });
+});
 </script>
 {% endblock %}

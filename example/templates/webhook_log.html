@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Webhook Delivery Log{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Webhook Delivery Log</h2>
+  <a href="{% url 'mirth-messages' %}" class="btn btn-sm btn-outline-secondary">← Mirth Feed</a>
+</div>
+
+<p class="text-muted">
+  Every successful HL7 transform triggers outbound FHIR webhook deliveries to downstream systems.
+  This log shows what was sent, where, and whether the downstream accepted it.
+  Failed deliveries require investigation — the patient data may not have reached the target system.
+</p>
+
+<!-- Status summary -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-3">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.total|default:0 }}</div>
+        <div class="small text-muted">Total Attempts</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card text-center border-success">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">{{ totals.delivered|default:0 }}</div>
+        <div class="small text-muted">Delivered</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card text-center border-danger">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-danger">{{ totals.failed|default:0 }}</div>
+        <div class="small text-muted">Failed</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card text-center border-warning">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-warning">{{ totals.pending|default:0 }}</div>
+        <div class="small text-muted">Pending</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+  <span class="text-muted small">Status:</span>
+  <a href="{% url 'webhook-log' %}{% if current_resource %}?resource_type={{ current_resource }}{% endif %}"
+     class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for value, label in status_choices %}
+  <a href="{% url 'webhook-log' %}?status={{ value }}{% if current_resource %}&resource_type={{ current_resource }}{% endif %}"
+     class="btn btn-sm {% if current_status == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+
+  {% if resource_types %}
+  <span class="text-muted small ms-3">Resource:</span>
+  <a href="{% url 'webhook-log' %}{% if current_status %}?status={{ current_status }}{% endif %}"
+     class="btn btn-sm {% if not current_resource %}btn-info{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for rt in resource_types %}
+  <a href="{% url 'webhook-log' %}?resource_type={{ rt }}{% if current_status %}&status={{ current_status }}{% endif %}"
+     class="btn btn-sm {% if current_resource == rt %}btn-info{% else %}btn-outline-secondary{% endif %}">
+    {{ rt }}
+  </a>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<!-- Delivery table -->
+{% if deliveries %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Status</th>
+        <th>Resource Type</th>
+        <th>Target URL</th>
+        <th>HTTP</th>
+        <th>Duration</th>
+        <th>Trace</th>
+        <th>Error</th>
+        <th>Sent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deliveries %}
+      <tr>
+        <td>
+          {% if d.status == "DELIVERED" %}
+            <span class="badge text-bg-success">Delivered</span>
+          {% elif d.status == "FAILED" %}
+            <span class="badge text-bg-danger">Failed</span>
+          {% elif d.status == "RETRYING" %}
+            <span class="badge text-bg-warning text-dark">Retrying</span>
+          {% else %}
+            <span class="badge text-bg-secondary">Pending</span>
+          {% endif %}
+        </td>
+        <td><code>{{ d.fhir_resource_type }}</code></td>
+        <td class="small text-truncate" style="max-width:200px;" title="{{ d.target_url }}">
+          {{ d.target_url }}
+        </td>
+        <td>
+          {% if d.response_code %}
+            <span class="badge {% if d.response_code < 300 %}text-bg-success{% else %}text-bg-danger{% endif %}">
+              {{ d.response_code }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="small">
+          {% if d.duration_ms %}{{ d.duration_ms }}ms{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if d.trace_id %}
+            <a href="{% url 'mirth-messages' %}?trace_id={{ d.trace_id }}" class="small font-monospace">
+              {{ d.trace_id|slice:":8" }}…
+            </a>
+          {% else %}—{% endif %}
+        </td>
+        <td class="small text-danger">
+          {% if d.error_detail %}
+            <span title="{{ d.error_detail }}">{{ d.error_detail|truncatechars:40 }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="small text-muted">{{ d.created_at|date:"Y-m-d H:i:s" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-secondary">
+  No webhook deliveries found.
+  Send an ADT or SIU message through the
+  <a href="{% url 'hl7-playground' %}">HL7 Playground</a> or
+  <a href="{% url 'mirth-hl7' %}" class="font-monospace">POST /api/mirth/hl7/</a>
+  to trigger outbound webhooks.
+</div>
+{% endif %}
+
+<!-- Learning note -->
+<div class="alert alert-info small mt-4">
+  <strong>How this works:</strong>
+  After each successful HL7 → FHIR transform, <code>dispatch_webhooks_for_result()</code> is called.
+  It creates a <code>WebhookDelivery</code> record per FHIR resource and simulates an HTTP POST to the
+  target system. In production, this would use a task queue (Celery/SQS) so delivery failures never
+  block the inbound pipeline. The 80% success rate here demonstrates what a failure dashboard looks
+  like — ops teams use this view to identify stuck deliveries and trigger retries.
+</div>
+{% endblock %}

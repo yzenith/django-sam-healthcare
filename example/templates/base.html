@@ -65,6 +65,18 @@
              href="{% url 'mirth-messages' %}">Mirth Live Feed</a>
         </li>
 
+        <!-- Claim Reconciliation -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'claim-reconciliation' %}active{% endif %}"
+             href="{% url 'claim-reconciliation' %}">Claims</a>
+        </li>
+
+        <!-- Webhook Log -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'webhook-log' %}active{% endif %}"
+             href="{% url 'webhook-log' %}">Webhooks</a>
+        </li>
+
         <!-- Trace Logs -->
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'trace-logs-page' %}active{% endif %}"
@@ -78,6 +90,19 @@
         </li>
 
       </ul>
+
+      <!-- Auth -->
+      <div class="d-flex align-items-center ms-3">
+        {% if user.is_authenticated %}
+          <span class="text-white-50 small me-2">{{ user.username }}</span>
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-light">Sign Out</button>
+          </form>
+        {% else %}
+          <a href="{% url 'login' %}" class="btn btn-sm btn-outline-light">Sign In</a>
+        {% endif %}
+      </div>
     </div>
   </div>
 </nav>

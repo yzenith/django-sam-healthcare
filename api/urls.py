@@ -19,6 +19,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/', include('django.contrib.auth.urls')),  # login, logout, password_change, etc.
     path('', include('example.urls')),
     path("api/trace/", include("logtrace.api_urls")),   # JSON only
     path("trace/", include("logtrace.ui_urls")),        # HTML only

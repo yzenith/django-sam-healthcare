@@ -20,6 +20,7 @@ from rest_framework.renderers import JSONRenderer
 from drf_spectacular.utils import extend_schema, OpenApiExample, inline_serializer
 from rest_framework import serializers as drf_serializers
 from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib.auth.decorators import login_required
 from .hl7_utils import (
     hl7_to_all,
     extract_hl7_summary,
@@ -31,7 +32,8 @@ from .hl7_utils import (
     generate_ack,
 )
 
-from .models import HL7MessageLog, PatientRecord, PatientImportRun
+from .models import HL7MessageLog, PatientRecord, PatientImportRun, ClaimRecord, WebhookDelivery
+from .webhook_service import dispatch_webhooks_for_result
 
 # JWT settings – use env vars in real deployment
 MIRTH_JWT_SECRET = os.environ.get("MIRTH_JWT_SECRET", "MIRTH_DEMO_SECRET_KEY")
@@ -62,6 +64,7 @@ def _norm_state(v):
     return v[:2]
 
 # ⬇⬇⬇ add patient import rejects CSV view
+@login_required
 def patient_import_rejects_csv(request, pk: int):
     run = get_object_or_404(PatientImportRun, pk=pk)
 
@@ -97,6 +100,7 @@ def patient_import_rejects_csv(request, pk: int):
 
 
 # ⬇⬇⬇ add patient import views
+@login_required
 def patient_import_page(request):
     """
     GET: show upload + recent runs
@@ -244,6 +248,7 @@ def patient_import_page(request):
         return redirect("patient-import-detail", pk=run.pk)
 
 # ⬇⬇⬇ add patient import detail view
+@login_required
 def patient_import_detail(request, pk: int):
     run = get_object_or_404(PatientImportRun, pk=pk)
     return render(request, "patient_import_detail.html", {"run": run})
@@ -324,6 +329,7 @@ def home(request):
 def hl7_playground(request):
     return render(request, "hl7_playground.html")
 
+@login_required
 def mirth_messages(request):
     # logs = HL7MessageLog.objects.order_by("-created_at")[:20]
     qs = HL7MessageLog.objects.order_by("-created_at")
@@ -340,6 +346,7 @@ def mirth_messages(request):
     return render(request, "mirth_messages.html", {"logs": logs})
     
 
+@login_required
 def mirth_message_detail(request, pk):
     log = get_object_or_404(HL7MessageLog, pk=pk)
 
@@ -617,7 +624,7 @@ class MirthHL7View(APIView):
 
         
 
-        HL7MessageLog.objects.create(
+        msg_log = HL7MessageLog.objects.create(
             trace_id=trace_id,
             source_system="MIRTH",
             source_context=source_context,
@@ -626,10 +633,7 @@ class MirthHL7View(APIView):
             trigger_event=trigger_event,
             raw_hl7=normalized,
             processing_status=HL7MessageLog.ProcessingStatus.TRANSFORMED,
-            # error_category=HL7MessageLog.ErrorCategory.NONE,
-            # error_message="",
             steps=steps,
-            # has_x12=bool(result.get("x12_837")),
             patient_id=patient_id,
             encounter_present=encounter_present,
             patient_class=patient_class,
@@ -639,6 +643,30 @@ class MirthHL7View(APIView):
             error_category=error_category,
             error_message=error_message,
         )
+
+        # Persist claim lifecycle record for reconciliation report.
+        # Only ADT messages with X12 output produce a claim.
+        recon = result.get("claim_reconciliation")
+        if has_x12 and recon:
+            status_map = {"paid": ClaimRecord.ClaimStatus.PAID, "denied": ClaimRecord.ClaimStatus.DENIED}
+            claim_status = status_map.get(recon.get("status"), ClaimRecord.ClaimStatus.SUBMITTED)
+            ClaimRecord.objects.create(
+                message_log=msg_log,
+                trace_id=trace_id,
+                claim_id=recon.get("claim_id", ""),
+                patient_id=patient_id,
+                status=claim_status,
+                billed_amount=recon.get("billed_total", 0),
+                paid_amount=recon.get("paid_amount", 0),
+                patient_responsibility=recon.get("patient_responsibility", 0),
+                balance_due=recon.get("balance_due_to_provider", 0),
+                x12_837=result.get("x12_837") or "",
+                x12_835=result.get("x12_835") or "",
+            )
+
+        # Dispatch FHIR webhooks to simulated downstream systems.
+        # Runs after DB writes so a webhook failure never blocks the pipeline.
+        dispatch_webhooks_for_result(result, trace_id)
 
         ack = generate_ack(normalized, ack_code="AA")
         return Response(
@@ -653,6 +681,93 @@ class MirthHL7View(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+@login_required
+def webhook_delivery_log(request):
+    """
+    GET /webhooks/
+
+    Shows every outbound FHIR webhook attempt — delivered, failed, or pending.
+    Demonstrates the outbound side of the pipeline: after a successful HL7
+    transform, the FHIR resource is pushed to downstream systems.
+
+    In production this is how an ops team monitors delivery failures and
+    triggers manual retries before the patient data goes stale downstream.
+    """
+    from django.db.models import Count
+
+    qs = WebhookDelivery.objects.all()
+
+    status_filter = request.GET.get("status")
+    resource_filter = request.GET.get("resource_type")
+    if status_filter in {s.value for s in WebhookDelivery.DeliveryStatus}:
+        qs = qs.filter(status=status_filter)
+    if resource_filter:
+        qs = qs.filter(fhir_resource_type=resource_filter)
+
+    totals = WebhookDelivery.objects.aggregate(
+        total=Count("id"),
+        delivered=Count("id", filter=Q(status=WebhookDelivery.DeliveryStatus.DELIVERED)),
+        failed=Count("id", filter=Q(status=WebhookDelivery.DeliveryStatus.FAILED)),
+        pending=Count("id", filter=Q(status=WebhookDelivery.DeliveryStatus.PENDING)),
+    )
+
+    resource_types = (
+        WebhookDelivery.objects.values_list("fhir_resource_type", flat=True)
+        .distinct()
+        .order_by("fhir_resource_type")
+    )
+
+    return render(request, "webhook_log.html", {
+        "deliveries": qs[:100],
+        "totals": totals,
+        "status_choices": WebhookDelivery.DeliveryStatus.choices,
+        "current_status": status_filter,
+        "resource_types": resource_types,
+        "current_resource": resource_filter,
+    })
+
+
+@login_required
+def claim_reconciliation_report(request):
+    """
+    GET /mirth/claims/reconciliation/
+
+    Billing reconciliation dashboard: every claim that flowed through
+    the Mirth pipeline, with billed vs paid vs denied totals.
+
+    Key concept: this is the operational report a billing team checks
+    daily to catch underpayments, denials, and unmatched claims.
+    """
+    from django.db.models import Sum, Count
+
+    qs = ClaimRecord.objects.select_related("message_log").order_by("-created_at")
+
+    # Filter by status if requested
+    status_filter = request.GET.get("status")
+    if status_filter in {s.value for s in ClaimRecord.ClaimStatus}:
+        qs = qs.filter(status=status_filter)
+
+    # Aggregate totals — one DB query instead of iterating in Python
+    totals = ClaimRecord.objects.aggregate(
+        total_claims=Count("id"),
+        total_billed=Sum("billed_amount"),
+        total_paid=Sum("paid_amount"),
+        total_patient_resp=Sum("patient_responsibility"),
+        total_balance_due=Sum("balance_due"),
+        paid_count=Count("id", filter=Q(status=ClaimRecord.ClaimStatus.PAID)),
+        denied_count=Count("id", filter=Q(status=ClaimRecord.ClaimStatus.DENIED)),
+        partial_count=Count("id", filter=Q(status=ClaimRecord.ClaimStatus.PARTIAL)),
+        submitted_count=Count("id", filter=Q(status=ClaimRecord.ClaimStatus.SUBMITTED)),
+    )
+
+    return render(request, "claim_reconciliation.html", {
+        "claims": qs[:100],   # cap at 100 rows for demo
+        "totals": totals,
+        "status_choices": ClaimRecord.ClaimStatus.choices,
+        "current_status": status_filter,
+    })
 
 
 def health(request):

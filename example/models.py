@@ -96,3 +96,114 @@ class PatientImportRun(models.Model):
 
     def __str__(self):
         return f"PatientImportRun {self.id} {self.status} {self.created_at}"
+
+
+class ClaimRecord(models.Model):
+    """
+    Persists claim lifecycle data for billing reconciliation reporting.
+
+    Created when an ADT message with X12 output is processed through
+    MirthHL7View. Tracks the full claim lifecycle: submitted → payer
+    response → reconciliation.
+
+    In production this would link to an ERA (835) when received. Here
+    the 835 is simulated at transform time so all three states are
+    captured in one write.
+    """
+
+    class ClaimStatus(models.TextChoices):
+        SUBMITTED  = "SUBMITTED",  "Submitted"
+        PAID       = "PAID",       "Paid"
+        PARTIAL    = "PARTIAL",    "Partial Payment"
+        DENIED     = "DENIED",     "Denied"
+        PENDING    = "PENDING",    "Pending"
+
+    created_at      = models.DateTimeField(auto_now_add=True)
+    message_log     = models.OneToOneField(
+        HL7MessageLog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="claim",
+    )
+    trace_id        = models.CharField(max_length=32, blank=True, default="", db_index=True)
+    claim_id        = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    patient_id      = models.CharField(max_length=64, blank=True, default="")
+    status          = models.CharField(
+        max_length=16,
+        choices=ClaimStatus.choices,
+        default=ClaimStatus.SUBMITTED,
+        db_index=True,
+    )
+
+    billed_amount          = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    paid_amount            = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    patient_responsibility = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    adjustment_amount      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    balance_due            = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Raw 837/835 for audit
+    x12_837 = models.TextField(blank=True, default="")
+    x12_835 = models.TextField(blank=True, default="")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["patient_id", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Claim {self.claim_id} [{self.status}] billed={self.billed_amount} paid={self.paid_amount}"
+
+
+class WebhookDelivery(models.Model):
+    """
+    Records every outbound FHIR webhook delivery attempt.
+
+    After a successful HL7 transform, the pipeline sends the FHIR
+    resource to a configured downstream URL (EHR, analytics platform,
+    notification service). This model stores:
+      - what was sent (fhir_resource_type, fhir_payload)
+      - where it was sent (target_url)
+      - whether it succeeded (status, response_code)
+      - how long it took (duration_ms)
+
+    In production this would use a task queue (Celery/SQS). Here we
+    simulate synchronous delivery for demo purposes.
+    """
+
+    class DeliveryStatus(models.TextChoices):
+        PENDING   = "PENDING",   "Pending"
+        DELIVERED = "DELIVERED", "Delivered"
+        FAILED    = "FAILED",    "Failed"
+        RETRYING  = "RETRYING",  "Retrying"
+
+    created_at         = models.DateTimeField(auto_now_add=True)
+    delivered_at       = models.DateTimeField(null=True, blank=True)
+
+    trace_id           = models.CharField(max_length=32, blank=True, default="", db_index=True)
+    fhir_resource_type = models.CharField(max_length=64, blank=True, default="")
+    fhir_payload       = models.JSONField(default=dict)
+    target_url         = models.CharField(max_length=255, blank=True, default="")
+
+    status             = models.CharField(
+        max_length=16,
+        choices=DeliveryStatus.choices,
+        default=DeliveryStatus.PENDING,
+        db_index=True,
+    )
+    response_code      = models.IntegerField(null=True, blank=True)
+    response_body      = models.TextField(blank=True, default="")
+    duration_ms        = models.IntegerField(null=True, blank=True)
+    attempt_count      = models.IntegerField(default=1)
+    error_detail       = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["trace_id"]),
+        ]
+
+    def __str__(self):
+        return f"Webhook {self.fhir_resource_type} [{self.status}] trace={self.trace_id}"

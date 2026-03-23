@@ -23,6 +23,20 @@ ORU_EVENT_REASON = {
     "R01": "Publish lab results: clinical review + charge capture",
 }
 
+SIU_EVENT_LABELS = {
+    "S12": "New Appointment",
+    "S13": "Appointment Rescheduled",
+    "S14": "Appointment Modified",
+    "S15": "Appointment Canceled",
+    "S17": "Appointment Deleted",
+}
+
+SIU_EVENT_REASON = {
+    "S12": "Notify downstream systems of new appointment: scheduling + resource allocation",
+    "S13": "Update appointment slot: re-check availability + notify affected resources",
+    "S15": "Release appointment slot: update schedule + trigger cancellation workflow",
+}
+
 ORM_EVENT_LABELS = {
     "O01": "New Order",
     "O02": "Order Response",
@@ -106,6 +120,12 @@ def build_trigger_event(message_type: str) -> dict:
             "description": MDM_EVENT_LABELS.get(evt, f"MDM Event {evt or '(unknown)'}"),
             "business_reason": MDM_EVENT_REASON.get(evt, ""),
         }
+    if msg == "SIU":
+        return {
+            "code": evt,
+            "description": SIU_EVENT_LABELS.get(evt, f"SIU Event {evt or '(unknown)'}"),
+            "business_reason": SIU_EVENT_REASON.get(evt, ""),
+        }
     return {"code": evt, "description": "", "business_reason": ""}
 
 def build_message_profile(message_type: str) -> str:
@@ -132,6 +152,9 @@ def build_message_profile(message_type: str) -> str:
     if msg == "MDM":
         label = MDM_EVENT_LABELS.get(evt, f"MDM Event {evt or '(unknown)'}")
         return f"HL7 v2 MDM ({label})"
+    if msg == "SIU":
+        label = SIU_EVENT_LABELS.get(evt, f"SIU Event {evt or '(unknown)'}")
+        return f"HL7 v2 SIU ({label})"
 
     return f"HL7 v2 {msg} ({evt})" if evt else f"HL7 v2 {msg}"
 
@@ -233,6 +256,10 @@ def hl7_to_all(hl7_text: str):
     # --- MDM messages: clinical documents ---
     if msg_type.startswith("MDM"):
         return hl7_mdm_to_fhir(hl7_text)
+
+    # --- SIU messages: appointment scheduling ---
+    if msg_type.startswith("SIU"):
+        return hl7_siu_to_fhir(hl7_text)
 
     # --- Unsupported / future types ---
     return {
@@ -366,6 +393,12 @@ def validate_hl7_message(hl7_text: str):
                 errors.append("Missing PID-3 (Patient Identifier)")
         if "PV1" not in segments:
             warnings.append("Missing PV1 segment (Encounter will not be generated)")
+
+    if msg_type.startswith("SIU"):
+        if "SCH" not in segments:
+            errors.append("SIU requires SCH segment (Scheduling Activity Information)")
+        if "PID" not in segments:
+            warnings.append("Missing PID segment (Appointment will have no patient reference)")
 
     return errors, warnings
 
@@ -855,6 +888,167 @@ def reconcile_837_835(x12_837: str, x12_835: str) -> dict:
         "patient_responsibility": round(patient_resp, 2),
         "adjustments": adjustments,
         "balance_due_to_provider": round(max(billed_total - paid - patient_resp, 0.0), 2),
+    }
+
+
+def hl7_siu_to_fhir(hl7_text: str) -> dict:
+    """
+    Convert SIU^S12/S13/S15 (scheduling) to a FHIR Appointment resource.
+
+    Key SIU segments:
+      SCH - Scheduling Activity Information (appointment ID, time, duration, status)
+      PID - Patient Identity (same as ADT)
+      AIS - Appointment Information - Service (what service/procedure is scheduled)
+      AIP - Appointment Information - Personnel (which provider)
+
+    FHIR Appointment has:
+      status: proposed | pending | booked | arrived | fulfilled | cancelled
+      start/end: ISO datetimes
+      participant: list of Patient + Practitioner references
+      serviceType: coded service being scheduled
+    """
+    segments_raw = [ln.strip() for ln in hl7_text.strip().splitlines() if ln.strip()]
+
+    msg_type = "SIU^S12"
+    pid = {}
+    sch = {}
+    ais = {}
+    aip = {}
+
+    for seg in segments_raw:
+        fields = seg.split("|")
+
+        if seg.startswith("MSH") and len(fields) > 8:
+            msg_type = fields[8] or msg_type
+
+        if seg.startswith("PID"):
+            patient_id = fields[3] if len(fields) > 3 else ""
+            name_field = fields[5] if len(fields) > 5 else ""
+            comps = name_field.split("^")
+            pid = {
+                "id": patient_id,
+                "family": comps[0] if comps else "",
+                "given": comps[1] if len(comps) > 1 else "",
+            }
+
+        if seg.startswith("SCH"):
+            # SCH-1: Placer Appointment ID
+            # SCH-2: Filler Appointment ID
+            # SCH-9: Appointment Duration (minutes)
+            # SCH-11: Appointment Timing Quantity (start datetime)
+            # SCH-25: Filler Status Code (booked / cancelled / etc.)
+            placer_id = fields[1] if len(fields) > 1 else ""
+            filler_id = fields[2] if len(fields) > 2 else ""
+            duration_raw = fields[9] if len(fields) > 9 else ""
+            timing_raw = fields[11] if len(fields) > 11 else ""
+            # SCH-11 is a TQ (Timing Quantity) composite: quantity^interval^duration^start^end^priority
+            timing_comps = timing_raw.split("^")
+            start_dt = timing_comps[3] if len(timing_comps) > 3 else ""
+            status_raw = fields[25] if len(fields) > 25 else ""
+
+            # Map HL7 filler status to FHIR Appointment.status
+            status_map = {
+                "Pending": "pending",
+                "Complete": "fulfilled",
+                "Cancelled": "cancelled",
+                "DC": "cancelled",
+                "Blocked": "proposed",
+                "Overbook": "waitlist",
+            }
+            fhir_status = status_map.get(status_raw, "booked")
+
+            # Parse start datetime (YYYYMMDDHHMMSS)
+            start_iso = None
+            if start_dt:
+                for _fmt, _len in (("%Y%m%d%H%M%S", 14), ("%Y%m%d%H%M", 12), ("%Y%m%d", 8)):
+                    if len(start_dt) >= _len:
+                        try:
+                            start_iso = datetime.strptime(start_dt[:_len], _fmt).replace(tzinfo=timezone.utc).isoformat()
+                            break
+                        except ValueError:
+                            continue
+
+            # Compute end from start + duration (minutes)
+            end_iso = None
+            if start_iso and duration_raw:
+                try:
+                    from datetime import timedelta
+                    dur_minutes = int(duration_raw.split("^")[0])
+                    dt_start = datetime.fromisoformat(start_iso)
+                    end_iso = (dt_start + timedelta(minutes=dur_minutes)).isoformat()
+                except (ValueError, IndexError):
+                    pass
+
+            sch = {
+                "placer_id": placer_id,
+                "filler_id": filler_id,
+                "fhir_status": fhir_status,
+                "start_iso": start_iso,
+                "end_iso": end_iso,
+                "duration_minutes": duration_raw,
+            }
+
+        if seg.startswith("AIS"):
+            # AIS-3: Universal Service ID (coded service, e.g. ECHO^Echocardiogram)
+            service_field = fields[3] if len(fields) > 3 else ""
+            service_parts = service_field.split("^")
+            ais = {
+                "service_code": service_parts[0] if service_parts else "",
+                "service_display": service_parts[1] if len(service_parts) > 1 else "",
+            }
+
+        if seg.startswith("AIP"):
+            # AIP-3: Personnel Resource ID (provider name/ID)
+            provider_field = fields[3] if len(fields) > 3 else ""
+            provider_parts = provider_field.split("^")
+            aip = {
+                "provider_id": provider_parts[0] if provider_parts else "",
+                "provider_family": provider_parts[1] if len(provider_parts) > 1 else "",
+                "provider_given": provider_parts[2] if len(provider_parts) > 2 else "",
+            }
+
+    patient_id = pid.get("id", "")
+
+    # Build FHIR Appointment participants
+    participants = []
+    if patient_id:
+        participants.append({
+            "actor": {"reference": f"Patient/{patient_id}",
+                      "display": f"{pid.get('family', '')}, {pid.get('given', '')}".strip(", ")},
+            "status": "accepted",
+        })
+    if aip.get("provider_id"):
+        participants.append({
+            "actor": {"reference": f"Practitioner/{aip['provider_id']}",
+                      "display": f"{aip.get('provider_family', '')} {aip.get('provider_given', '')}".strip()},
+            "status": "accepted",
+        })
+
+    appointment = {
+        "resourceType": "Appointment",
+        "status": sch.get("fhir_status", "booked"),
+        "identifier": [
+            {"system": "urn:example:placer-appointment", "value": sch.get("placer_id", "")},
+            {"system": "urn:example:filler-appointment", "value": sch.get("filler_id", "")},
+        ],
+        "serviceType": [{
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": ais.get("service_code", ""),
+                "display": ais.get("service_display", ""),
+            }]
+        }] if ais.get("service_code") else [],
+        "start": sch.get("start_iso"),
+        "end": sch.get("end_iso"),
+        "minutesDuration": int(sch["duration_minutes"].split("^")[0]) if sch.get("duration_minutes") else None,
+        "participant": participants,
+    }
+
+    return {
+        "message_type": msg_type,
+        "raw_hl7": hl7_text,
+        "patient_id": patient_id,
+        "appointment": appointment,
     }
 
 

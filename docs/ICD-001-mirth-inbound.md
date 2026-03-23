@@ -28,6 +28,9 @@
 | ORU          | R01   | Lab Result (Observation Report)    | No            |
 | ORM          | O01   | New Lab/Radiology Order            | No            |
 | MDM          | T02   | Clinical Document Notification     | No            |
+| SIU          | S12   | New Appointment                    | No            |
+| SIU          | S13   | Appointment Rescheduled            | No            |
+| SIU          | S15   | Appointment Canceled               | No            |
 
 ---
 
@@ -162,3 +165,4 @@ configuration. Operations staff should review these in the Mirth Live Feed.
 |---------|------------|-------------------------------------|------------|
 | 1.0     | 2025-12-18 | Initial interface specification     | S. Zhang   |
 | 1.1     | 2026-03-22 | Added ORM + MDM message types; ACK  | S. Zhang   |
+| 1.2     | 2026-03-22 | Added SIU scheduling message type   | S. Zhang   |

@@ -2,7 +2,7 @@
 # Vercel build script for Django
 set -e
 
-uv pip install -r requirements.txt --system
+uv pip install -r requirements.txt --python 3.12 --system
 
 python manage.py collectstatic --noinput
 python manage.py migrate --noinput

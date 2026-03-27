@@ -47,7 +47,7 @@
         <!-- Pipeline dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'hl7-playground,mirth-messages,mirth-message-detail,trace-ingest-page,patient-import' %}active{% endif %}"
+               {% if request.resolver_match.url_name in 'hl7-playground,mirth-messages,mirth-message-detail,trace-ingest-page,patient-import,sftp-ingest,sftp-run-detail-page' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Pipeline
           </a>
@@ -57,6 +57,7 @@
             <li><a class="dropdown-item" href="{% url 'trace-ingest-page' %}">Trace Ingest</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{% url 'patient-import' %}">CSV Import</a></li>
+            <li><a class="dropdown-item" href="{% url 'sftp-ingest' %}">SFTP Flat-File Ingest</a></li>
           </ul>
         </li>
 

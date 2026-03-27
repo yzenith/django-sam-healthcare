@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'logtrace',
     'adt',
     'dqmonitor',
+    'sftpingest',
 ]
 
 REST_FRAMEWORK = {
@@ -111,7 +112,8 @@ LOGGING = {
         'example': {'handlers': ['console'], 'level': 'INFO',    'propagate': False},
         'logtrace': {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
         'adt':      {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
-        'dqmonitor':{'handlers': ['console'], 'level': 'INFO',   'propagate': False},
+        'dqmonitor':  {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'sftpingest': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
 

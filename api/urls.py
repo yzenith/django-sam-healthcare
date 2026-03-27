@@ -26,6 +26,8 @@ urlpatterns = [
     path("api/adt/",  include("adt.api_urls")),         # ADT REST API
     path("adt/",      include("adt.ui_urls")),          # ADT HTML UI
     path("dq/",       include("dqmonitor.urls")),       # DQ dashboard (HTML) + metrics API
+    path("api/sftp/", include("sftpingest.api_urls")), # SFTP ingest REST API
+    path("sftp/",     include("sftpingest.ui_urls")),  # SFTP ingest HTML UI
 
     # OpenAPI schema + docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

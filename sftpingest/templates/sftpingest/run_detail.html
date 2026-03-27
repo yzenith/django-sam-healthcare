@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Ingest Run #{{ run.id }} | SFTP Ingest{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center mb-3 gap-2">
+  <a href="{% url 'sftp-ingest' %}" class="btn btn-sm btn-outline-secondary">← Back</a>
+  <h3 class="mb-0">Ingest Run #{{ run.id }}</h3>
+  {% if run.status == "COMPLETED" %}
+    <span class="badge bg-success fs-6">COMPLETED</span>
+  {% elif run.status == "FAILED" %}
+    <span class="badge bg-danger fs-6">FAILED</span>
+  {% else %}
+    <span class="badge bg-secondary fs-6">{{ run.status }}</span>
+  {% endif %}
+  {% if run.schema_type == "PATIENT" %}
+    <span class="badge bg-primary">PATIENT</span>
+  {% elif run.schema_type == "CLINICAL" %}
+    <span class="badge bg-success">CLINICAL</span>
+  {% endif %}
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold">{{ run.total_rows }}</div>
+        <div class="small text-muted">Total Rows</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-success">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-success">{{ run.valid_rows }}</div>
+        <div class="small text-muted">Valid</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-info">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-info">{{ run.inserted }}</div>
+        <div class="small text-muted">Inserted</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-primary">{{ run.updated }}</div>
+        <div class="small text-muted">Updated</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-danger">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-danger">{{ run.rejected }}</div>
+        <div class="small text-muted">Rejected</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <div class="fs-3 fw-bold text-warning">{{ run.duplicates_in_file }}</div>
+        <div class="small text-muted">Duplicates</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Metadata -->
+<div class="card mb-4">
+  <div class="card-header"><strong>Run Metadata</strong></div>
+  <div class="card-body small">
+    <div class="row">
+      <div class="col-md-6">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th style="width:140px">File</th><td><code>{{ run.filename }}</code></td></tr>
+          <tr><th>Schema</th><td>{{ run.schema_type }}</td></tr>
+          <tr><th>Delimiter</th><td>{{ run.detected_delimiter }}</td></tr>
+          <tr><th>Created</th><td>{{ run.created_at|date:"Y-m-d H:i:s" }}</td></tr>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th style="width:140px">Success rate</th><td>{{ run.success_rate }}%</td></tr>
+          <tr><th>Reject rate</th><td>{{ run.reject_rate }}%</td></tr>
+          {% if run.error_message %}
+          <tr><th>Error</th><td class="text-danger">{{ run.error_message }}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Processing summary JSON (collapsible) -->
+{% if run.processing_summary %}
+<div class="accordion mb-4" id="summaryAccordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#summaryBody">
+        Processing Summary (JSON)
+      </button>
+    </h2>
+    <div id="summaryBody" class="accordion-collapse collapse">
+      <div class="accordion-body">
+        <pre class="small mb-0" style="white-space:pre-wrap">{{ run.processing_summary|safe }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Validation errors -->
+{% if run.validation_errors %}
+<div class="card mb-4 border-danger">
+  <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+    <strong>Validation Errors</strong>
+    <span class="badge bg-light text-danger">{{ run.validation_errors|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:400px; overflow-y:auto;">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light sticky-top">
+          <tr><th>Row</th><th>Field</th><th>Error</th><th>Raw Value</th></tr>
+        </thead>
+        <tbody>
+          {% for err in run.validation_errors %}
+          <tr>
+            <td>{{ err.rownum }}</td>
+            <td><code>{{ err.field }}</code></td>
+            <td>{{ err.error }}</td>
+            <td><code>{{ err.raw_value }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Clinical records (CLINICAL schema only) -->
+{% if clinical_records %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Clinical Records (sample — up to 50)</strong>
+    <span class="badge bg-success">{{ clinical_records|length }} shown</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>MRN</th><th>Visit Date</th><th>Type</th>
+            <th>Diagnosis</th><th>Procedure</th>
+            <th>Provider</th><th>Facility</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in clinical_records %}
+          <tr>
+            <td><code>{{ rec.mrn }}</code></td>
+            <td>{{ rec.visit_date }}</td>
+            <td>{{ rec.visit_type }}</td>
+            <td><code>{{ rec.diagnosis_code }}</code></td>
+            <td><code>{{ rec.procedure_code }}</code></td>
+            <td>{{ rec.provider_id }}</td>
+            <td>{{ rec.facility_code }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

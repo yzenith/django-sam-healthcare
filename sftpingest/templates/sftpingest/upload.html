@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}SFTP Flat-File Ingest | Healthcare Integration{% endblock %}
+
+{% block content %}
+
+<!-- ── Page header ─────────────────────────────────────────────────────── -->
+<div class="d-flex align-items-center mb-3 gap-3">
+  <div>
+    <h2 class="mb-0">SFTP Flat-File Ingestion</h2>
+    <p class="text-muted mb-0 small">
+      Simulates an sFTP polling job that picks up CSV / pipe-delimited drops,
+      auto-detects schema, validates every row, and persists clean records to
+      PostgreSQL. Supports <strong>PATIENT demographics</strong> and
+      <strong>CLINICAL encounter</strong> schemas.
+    </p>
+  </div>
+</div>
+
+<!-- ── Pipeline banner ─────────────────────────────────────────────────── -->
+<div class="alert alert-secondary py-2 px-3 mb-4 small">
+  <strong>Simulated pipeline:</strong>
+  <span class="text-muted">
+    SFTP drop zone → delimiter detection → schema routing →
+    row validation → PostgreSQL upsert → processing summary
+  </span>
+</div>
+
+<!-- ── Upload card ─────────────────────────────────────────────────────── -->
+<div class="row g-4 mb-5">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-primary text-white">
+        <strong>Drop a Flat File</strong>
+        <span class="badge bg-light text-primary ms-2">POST /api/sftp/upload/</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Drop zone -->
+        <div id="dropZone"
+             class="border border-2 border-dashed rounded text-center p-5 mb-3"
+             style="cursor:pointer; border-style:dashed!important; transition:background .2s;">
+          <div id="dropLabel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"
+                 fill="currentColor" class="text-muted mb-2" viewBox="0 0 16 16">
+              <path d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 2.999 11.573 2 10 2a5.5 5.5 0 0 0-2 .389V0z"/>
+            </svg>
+            <p class="mb-1 fw-semibold">Drag &amp; drop your file here</p>
+            <p class="text-muted small mb-2">or click to browse</p>
+            <p class="text-muted small">CSV (.csv) · pipe-delimited (.txt/.dat) · tab-delimited — up to 20 MB</p>
+          </div>
+          <div id="selectedFile" class="d-none">
+            <span class="badge bg-success fs-6" id="selectedFileName"></span>
+          </div>
+          <input type="file" id="fileInput" accept=".csv,.txt,.dat,.tsv" class="d-none">
+        </div>
+
+        <button id="uploadBtn" class="btn btn-primary w-100" disabled>
+          <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+          Ingest File
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schema reference card -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header">
+        <strong>Supported Schemas</strong>
+      </div>
+      <div class="card-body small">
+        <h6 class="text-primary">PATIENT Demographics</h6>
+        <p class="text-muted mb-1">Detected by headers: <code>mrn</code>, <code>first_name</code>, <code>last_name</code>, <code>dob</code></p>
+        <table class="table table-sm table-bordered mb-3">
+          <thead class="table-light"><tr><th>Field</th><th>Required</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>mrn</td><td><span class="badge bg-danger">Yes</span></td><td>Medical Record Number</td></tr>
+            <tr><td>last_name</td><td><span class="badge bg-danger">Yes</span></td><td></td></tr>
+            <tr><td>first_name</td><td><span class="badge bg-danger">Yes</span></td><td></td></tr>
+            <tr><td>dob</td><td><span class="badge bg-danger">Yes</span></td><td>YYYY-MM-DD or YYYYMMDD</td></tr>
+            <tr><td>gender</td><td><span class="badge bg-secondary">No</span></td><td>M / F / U / O</td></tr>
+            <tr><td>address1, city, state, zip_code, phone</td><td><span class="badge bg-secondary">No</span></td><td></td></tr>
+          </tbody>
+        </table>
+
+        <h6 class="text-success">CLINICAL Encounters</h6>
+        <p class="text-muted mb-1">Detected by headers: <code>visit_date</code>, <code>diagnosis_code</code>, <code>procedure_code</code></p>
+        <table class="table table-sm table-bordered mb-0">
+          <thead class="table-light"><tr><th>Field</th><th>Required</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>mrn</td><td><span class="badge bg-danger">Yes</span></td><td></td></tr>
+            <tr><td>visit_date</td><td><span class="badge bg-danger">Yes</span></td><td>YYYY-MM-DD</td></tr>
+            <tr><td>diagnosis_code</td><td><span class="badge bg-secondary">No</span></td><td>ICD-10 format</td></tr>
+            <tr><td>procedure_code</td><td><span class="badge bg-secondary">No</span></td><td>CPT-4/5 or HCPCS</td></tr>
+            <tr><td>visit_type, provider_id, facility_code, notes</td><td><span class="badge bg-secondary">No</span></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Result panel (hidden until upload) ───────────────────────────────── -->
+<div id="resultPanel" class="d-none mb-5">
+  <div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Processing Summary</strong>
+      <span id="resultBadge" class="badge"></span>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3" id="resultStats"></div>
+      <div id="resultErrors" class="d-none">
+        <h6 class="text-danger">Validation Errors</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered" id="errorsTable">
+            <thead class="table-light">
+              <tr><th>Row</th><th>Field</th><th>Error</th><th>Raw Value</th></tr>
+            </thead>
+            <tbody id="errorsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <a id="resultDetailLink" href="#" class="btn btn-sm btn-outline-primary">View Full Run Detail →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recent runs table ────────────────────────────────────────────────── -->
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Recent Ingest Runs</strong>
+    <span class="badge bg-secondary">{{ recent_runs|length }} shown</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Filename</th>
+            <th>Status</th>
+            <th>Schema</th>
+            <th>Delimiter</th>
+            <th>Total</th>
+            <th>Valid</th>
+            <th>Inserted</th>
+            <th>Updated</th>
+            <th>Rejected</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="runsTableBody">
+          {% for run in recent_runs %}
+          <tr>
+            <td>{{ run.id }}</td>
+            <td class="text-truncate" style="max-width:160px;" title="{{ run.filename }}">{{ run.filename }}</td>
+            <td>
+              {% if run.status == "COMPLETED" %}
+                <span class="badge bg-success">COMPLETED</span>
+              {% elif run.status == "FAILED" %}
+                <span class="badge bg-danger">FAILED</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ run.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if run.schema_type == "PATIENT" %}
+                <span class="badge bg-primary">PATIENT</span>
+              {% elif run.schema_type == "CLINICAL" %}
+                <span class="badge bg-success">CLINICAL</span>
+              {% else %}
+                <span class="badge bg-secondary">UNKNOWN</span>
+              {% endif %}
+            </td>
+            <td><code>{{ run.detected_delimiter }}</code></td>
+            <td>{{ run.total_rows }}</td>
+            <td>{{ run.valid_rows }}</td>
+            <td class="text-success">{{ run.inserted }}</td>
+            <td class="text-info">{{ run.updated }}</td>
+            <td class="text-danger">{{ run.rejected }}</td>
+            <td class="text-muted small">{{ run.created_at|date:"Y-m-d H:i" }}</td>
+            <td><a href="{% url 'sftp-run-detail-page' run.pk %}" class="btn btn-xs btn-outline-secondary btn-sm py-0">Detail</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="12" class="text-center text-muted py-4">No ingest runs yet. Upload a file above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+const UPLOAD_URL = "{% url 'sftp-upload' %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
+
+// ── Drag-and-drop / file selection ────────────────────────────────────────
+const dropZone   = document.getElementById("dropZone");
+const fileInput  = document.getElementById("fileInput");
+const uploadBtn  = document.getElementById("uploadBtn");
+const dropLabel  = document.getElementById("dropLabel");
+const selFile    = document.getElementById("selectedFile");
+const selName    = document.getElementById("selectedFileName");
+
+let selectedFile = null;
+
+dropZone.addEventListener("click", () => fileInput.click());
+
+dropZone.addEventListener("dragover", e => {
+  e.preventDefault();
+  dropZone.classList.add("bg-light");
+});
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("bg-light"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("bg-light");
+  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) setFile(fileInput.files[0]);
+});
+
+function setFile(f) {
+  selectedFile = f;
+  dropLabel.classList.add("d-none");
+  selFile.classList.remove("d-none");
+  selName.textContent = f.name + " (" + (f.size / 1024).toFixed(1) + " KB)";
+  uploadBtn.disabled = false;
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+uploadBtn.addEventListener("click", async () => {
+  if (!selectedFile) return;
+
+  uploadBtn.disabled = true;
+  document.getElementById("uploadSpinner").classList.remove("d-none");
+  document.getElementById("resultPanel").classList.add("d-none");
+
+  const fd = new FormData();
+  fd.append("file", selectedFile);
+
+  try {
+    const resp = await fetch(UPLOAD_URL, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN },
+      body: fd,
+    });
+    const data = await resp.json();
+    renderResult(data, resp.ok);
+  } catch (err) {
+    alert("Upload failed: " + err);
+  } finally {
+    uploadBtn.disabled = false;
+    document.getElementById("uploadSpinner").classList.add("d-none");
+  }
+});
+
+// ── Render result ──────────────────────────────────────────────────────────
+function renderResult(d, ok) {
+  const panel  = document.getElementById("resultPanel");
+  const badge  = document.getElementById("resultBadge");
+  const stats  = document.getElementById("resultStats");
+  const errDiv = document.getElementById("resultErrors");
+  const errBody = document.getElementById("errorsBody");
+  const detailLink = document.getElementById("resultDetailLink");
+
+  panel.classList.remove("d-none");
+
+  if (d.status === "COMPLETED") {
+    badge.className = "badge bg-success";
+    badge.textContent = "COMPLETED";
+  } else {
+    badge.className = "badge bg-danger";
+    badge.textContent = d.status || "ERROR";
+  }
+
+  const schema = d.schema_type || "UNKNOWN";
+  const delim  = d.detected_delimiter || "—";
+
+  stats.innerHTML = `
+    <div class="col-6 col-md-3"><div class="card text-center border-0 bg-light"><div class="card-body py-2">
+      <div class="fs-4 fw-bold">${d.total_rows ?? 0}</div><div class="small text-muted">Total Rows</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card text-center border-0 bg-success bg-opacity-10"><div class="card-body py-2">
+      <div class="fs-4 fw-bold text-success">${d.valid_rows ?? 0}</div><div class="small text-muted">Valid</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card text-center border-0 bg-info bg-opacity-10"><div class="card-body py-2">
+      <div class="fs-4 fw-bold text-info">${(d.inserted ?? 0) + " ins / " + (d.updated ?? 0) + " upd"}</div><div class="small text-muted">Persisted</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card text-center border-0 bg-danger bg-opacity-10"><div class="card-body py-2">
+      <div class="fs-4 fw-bold text-danger">${d.rejected ?? 0}</div><div class="small text-muted">Rejected</div>
+    </div></div></div>
+    <div class="col-12 small text-muted mt-1">
+      Schema: <strong>${schema}</strong> &nbsp;·&nbsp; Delimiter: <strong>${delim}</strong>
+      &nbsp;·&nbsp; Duplicates in file: <strong>${d.duplicates_in_file ?? 0}</strong>
+      ${d.error_message ? '<br><span class="text-danger">' + d.error_message + '</span>' : ''}
+    </div>
+  `;
+
+  const errors = d.validation_errors || [];
+  if (errors.length > 0) {
+    errDiv.classList.remove("d-none");
+    errBody.innerHTML = errors.slice(0, 50).map(e => `
+      <tr>
+        <td>${e.rownum}</td>
+        <td><code>${e.field}</code></td>
+        <td>${e.error}</td>
+        <td><code>${e.raw_value || ""}</code></td>
+      </tr>
+    `).join("") + (errors.length > 50
+      ? `<tr><td colspan="4" class="text-muted text-center small">… and ${errors.length - 50} more — see full run detail</td></tr>`
+      : "");
+  } else {
+    errDiv.classList.add("d-none");
+  }
+
+  if (d.id) {
+    detailLink.href = `/sftp/${d.id}/`;
+    detailLink.classList.remove("d-none");
+  } else {
+    detailLink.classList.add("d-none");
+  }
+
+  // Prepend a row to the runs table
+  if (d.id) {
+    const tbody = document.getElementById("runsTableBody");
+    const emptyRow = tbody.querySelector("td[colspan]");
+    if (emptyRow) emptyRow.closest("tr").remove();
+    const statusBadge = d.status === "COMPLETED"
+      ? '<span class="badge bg-success">COMPLETED</span>'
+      : '<span class="badge bg-danger">' + d.status + '</span>';
+    const schemaBadge = schema === "PATIENT"
+      ? '<span class="badge bg-primary">PATIENT</span>'
+      : schema === "CLINICAL"
+        ? '<span class="badge bg-success">CLINICAL</span>'
+        : '<span class="badge bg-secondary">UNKNOWN</span>';
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${d.id}</td>
+      <td class="text-truncate" style="max-width:160px;">${d.filename}</td>
+      <td>${statusBadge}</td>
+      <td>${schemaBadge}</td>
+      <td><code>${delim}</code></td>
+      <td>${d.total_rows}</td>
+      <td>${d.valid_rows}</td>
+      <td class="text-success">${d.inserted}</td>
+      <td class="text-info">${d.updated}</td>
+      <td class="text-danger">${d.rejected}</td>
+      <td class="text-muted small">just now</td>
+      <td><a href="/sftp/${d.id}/" class="btn btn-xs btn-outline-secondary btn-sm py-0">Detail</a></td>
+    `;
+    tbody.prepend(tr);
+  }
+}
+</script>
+{% endblock %}

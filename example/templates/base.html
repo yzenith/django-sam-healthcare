@@ -90,11 +90,13 @@
         <!-- Operations dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'trace-logs-page,claim-reconciliation,webhook-log' %}active{% endif %}"
+               {% if request.resolver_match.url_name in 'trace-logs-page,claim-reconciliation,webhook-log,dq-dashboard' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Operations
           </a>
           <ul class="dropdown-menu dropdown-menu-dark">
+            <li><a class="dropdown-item" href="{% url 'dq-dashboard' %}">Data Quality Monitor</a></li>
+            <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{% url 'trace-logs-page' %}">Trace Logs</a></li>
             <li><a class="dropdown-item" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a></li>
             <li><a class="dropdown-item" href="{% url 'claim-reconciliation' %}">Claims</a></li>

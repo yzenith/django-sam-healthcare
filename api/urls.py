@@ -25,6 +25,7 @@ urlpatterns = [
     path("trace/", include("logtrace.ui_urls")),        # HTML only
     path("api/adt/",  include("adt.api_urls")),         # ADT REST API
     path("adt/",      include("adt.ui_urls")),          # ADT HTML UI
+    path("dq/",       include("dqmonitor.urls")),       # DQ dashboard (HTML) + metrics API
 
     # OpenAPI schema + docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

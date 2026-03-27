@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block title %}Data Quality Monitor{% endblock %}
+
+{% block content %}
+
+<!-- ── Page header ─────────────────────────────────────────────────────────── -->
+<div class="row mb-4 align-items-end">
+  <div class="col-lg-8">
+    <h1 class="mb-1">Data Quality Monitor</h1>
+    <p class="text-muted mb-0">
+      Real-time quality metrics across all inbound HL7 v2, FHIR, ADT, and DFT message pipelines.
+      Flags incomplete or delayed messages before they impact downstream billing and care.
+    </p>
+  </div>
+  <div class="col-lg-4 text-end">
+    <span class="badge text-bg-success me-2" id="refreshBadge">Live</span>
+    <span class="text-muted small">
+      Refreshes every <strong>30 s</strong> &nbsp;·&nbsp;
+      Last: <span id="lastRefresh">—</span>
+    </span>
+  </div>
+</div>
+
+<!-- ── Source coverage bar ─────────────────────────────────────────────────── -->
+<div class="card border-0 bg-body-secondary mb-4 py-2">
+  <div class="card-body py-2">
+    <div class="d-flex flex-wrap gap-4 align-items-center justify-content-center small">
+      <div class="text-center">
+        <div class="fw-bold fs-5" id="srcHl7">{{ total_hl7 }}</div>
+        <div class="text-muted">HL7 Messages</div>
+      </div>
+      <div class="vr"></div>
+      <div class="text-center">
+        <div class="fw-bold fs-5" id="srcTrace">{{ trace_total }}</div>
+        <div class="text-muted">Trace Logs</div>
+      </div>
+      <div class="vr"></div>
+      <div class="text-center">
+        <div class="fw-bold fs-5" id="srcAdt">{{ adt_total }}</div>
+        <div class="text-muted">ADT Events</div>
+      </div>
+      <div class="vr"></div>
+      <div class="text-center">
+        <div class="fw-bold fs-5" id="srcDft">{{ dft_total }}</div>
+        <div class="text-muted">DFT Billing</div>
+      </div>
+      <div class="vr"></div>
+      <div class="text-center">
+        <div class="fw-bold fs-5 {% if trace_failed > 0 %}text-danger{% endif %}" id="srcTraceFailed">{{ trace_failed }}</div>
+        <div class="text-muted">Trace Failures</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Summary cards ───────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-xl-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Success Rate</div>
+        <div class="display-6 fw-bold {% if success_rate >= 90 %}text-success{% elif success_rate >= 70 %}text-warning{% else %}text-danger{% endif %}"
+             id="cardSuccessRate">{{ success_rate }}%</div>
+        <div class="small text-muted mt-1">
+          <span id="cardTransformed">{{ total_hl7 }}</span> total HL7 messages
+        </div>
+        <div class="progress mt-2" style="height:4px;">
+          <div class="progress-bar bg-success" id="successBar"
+               style="width:{{ success_rate }}%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Avg Processing Latency</div>
+        <div class="display-6 fw-bold" id="cardLatency">{{ avg_latency_label }}</div>
+        <div class="small text-muted mt-1">
+          Across <span id="cardTraceCount">{{ trace_total }}</span> traced messages
+        </div>
+        {% for lt in latency_by_type %}
+        <div class="small text-muted">{{ lt.input_type }}: {{ lt.avg_ms }} ms</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card h-100 {% if flagged_count > 0 %}border-warning{% endif %}">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Quality Flags</div>
+        <div class="display-6 fw-bold {% if flagged_count > 0 %}text-warning{% else %}text-success{% endif %}"
+             id="cardFlagged">{{ flagged_count }}</div>
+        <div class="small text-muted mt-1">
+          <span id="cardIncomplete">{{ incomplete_count }}</span> incomplete &nbsp;·&nbsp;
+          <span id="cardDelayed">{{ delayed_count }}</span> delayed
+        </div>
+        {% if flagged_count > 0 %}
+        <a href="#flagsTable" class="btn btn-sm btn-outline-warning mt-2">View flags ↓</a>
+        {% else %}
+        <div class="small text-success mt-2">All messages healthy</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card h-100 {% if error_rate > 10 %}border-danger{% endif %}">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Error Rate</div>
+        <div class="display-6 fw-bold {% if error_rate > 10 %}text-danger{% elif error_rate > 0 %}text-warning{% else %}text-success{% endif %}"
+             id="cardErrorRate">{{ error_rate }}%</div>
+        <div class="small text-muted mt-1">
+          Delay threshold: {{ delay_threshold_s }}s
+        </div>
+        <div class="progress mt-2" style="height:4px;">
+          <div class="progress-bar bg-danger" id="errorBar"
+               style="width:{{ error_rate }}%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Charts row ──────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+
+  <!-- Status distribution donut -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header small fw-semibold">Message Status Distribution</div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <canvas id="statusChart" style="max-height:220px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error count by message type -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header small fw-semibold">Errors by Message Type</div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        {% if error_data %}
+        <canvas id="errorChart" style="max-height:220px;"></canvas>
+        {% else %}
+        <p class="text-muted text-center py-4">No errors recorded</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Latency breakdown -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header small fw-semibold">Avg Latency by Input Type</div>
+      <div class="card-body">
+        {% if latency_by_type %}
+        <canvas id="latencyChart" style="max-height:220px;"></canvas>
+        {% else %}
+        <p class="text-muted text-center py-4">No latency data (TraceLog duration_ms not yet populated)</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Hourly volume line chart — full width -->
+<div class="card mb-4">
+  <div class="card-header small fw-semibold">
+    Hourly Message Volume — last 24 h
+    <span class="text-muted fw-normal ms-2">(total vs failed)</span>
+  </div>
+  <div class="card-body">
+    {% if hourly_labels %}
+    <canvas id="hourlyChart" style="height:180px;"></canvas>
+    {% else %}
+    <p class="text-muted text-center py-3">No messages in the last 24 hours.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Quality flags table ─────────────────────────────────────────────────── -->
+<div class="card mb-4" id="flagsTable">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span class="small fw-semibold">
+      Quality Flags
+      <span class="badge {% if flagged_count > 0 %}text-bg-warning{% else %}text-bg-success{% endif %} ms-1"
+            id="flagsBadge">{{ flagged_count }}</span>
+    </span>
+    <span class="text-muted small">INCOMPLETE = missing required fields &nbsp;·&nbsp; DELAYED = stuck past {{ delay_threshold_s }}s threshold</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Flag</th>
+            <th>Message Type</th>
+            <th>Patient ID</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>Received</th>
+          </tr>
+        </thead>
+        <tbody id="flagsBody">
+          {% for flag in flags %}
+          <tr>
+            <td>
+              {% if flag.flag_type == "INCOMPLETE" %}
+                <span class="badge text-bg-danger">INCOMPLETE</span>
+              {% elif flag.flag_type == "DELAYED" %}
+                <span class="badge text-bg-warning text-dark">DELAYED</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{{ flag.flag_type }}</span>
+              {% endif %}
+            </td>
+            <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ flag.message_type }}</span></td>
+            <td class="font-monospace small">{{ flag.patient_id }}</td>
+            <td>
+              {% if flag.processing_status == "FAILED" %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% elif flag.processing_status == "RECEIVED" %}
+                <span class="badge text-bg-secondary">Received</span>
+              {% elif flag.processing_status == "VALIDATED" %}
+                <span class="badge text-bg-info">Validated</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{{ flag.processing_status }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ flag.reason }}</td>
+            <td class="small text-nowrap text-muted">{{ flag.created_at|slice:":19"|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-success py-4">
+              No quality flags — all messages are complete and on time.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recent messages table ───────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header small fw-semibold">Recent HL7 Messages</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Patient ID</th>
+            <th>Status</th>
+            <th>Error Category</th>
+            <th>X12</th>
+          </tr>
+        </thead>
+        <tbody id="recentBody">
+          {% for msg in recent %}
+          <tr>
+            <td class="small text-nowrap text-muted">{{ msg.created_at|slice:":19" }}</td>
+            <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ msg.message_type|default:"—" }}</span></td>
+            <td class="font-monospace small">{{ msg.patient_id|default:"—" }}</td>
+            <td>
+              {% if msg.processing_status == "TRANSFORMED" %}
+                <span class="badge text-bg-success">Transformed</span>
+              {% elif msg.processing_status == "FAILED" %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% elif msg.processing_status == "VALIDATED" %}
+                <span class="badge text-bg-info">Validated</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{{ msg.processing_status }}</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if msg.error_category and msg.error_category != "NONE" %}
+                <span class="badge text-bg-warning text-dark">{{ msg.error_category }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if msg.has_x12 %}
+                <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              No HL7 messages yet.
+              <a href="{% url 'seed-demo-data' %}" class="text-decoration-none">Seed demo data</a> to populate.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<!-- Chart.js 4 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<script>
+// ── Initial data from server ──────────────────────────────────────────────────
+const INIT = {
+  statusLabels:  {{ status_labels_json }},
+  statusData:    {{ status_data_json }},
+  statusColours: {{ status_colours_json }},
+  errorLabels:   {{ error_labels_json }},
+  errorData:     {{ error_data_json }},
+  hourlyLabels:  {{ hourly_labels_json }},
+  hourlyTotal:   {{ hourly_total_json }},
+  hourlyFailed:  {{ hourly_failed_json }},
+};
+const METRICS_URL = "{% url 'dq-metrics-api' %}";
+const REFRESH_MS  = 30_000;
+
+// ── Chart instances ───────────────────────────────────────────────────────────
+let statusChart, errorChart, latencyChart, hourlyChart;
+
+function buildStatusChart() {
+  const ctx = document.getElementById("statusChart");
+  if (!ctx) return;
+  statusChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: INIT.statusLabels,
+      datasets: [{
+        data:            INIT.statusData,
+        backgroundColor: INIT.statusColours,
+        borderWidth:     2,
+      }]
+    },
+    options: {
+      plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+      cutout: "60%",
+    }
+  });
+}
+
+function buildErrorChart() {
+  const ctx = document.getElementById("errorChart");
+  if (!ctx || !INIT.errorLabels.length) return;
+  errorChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: INIT.errorLabels,
+      datasets: [{
+        label:           "Failed messages",
+        data:            INIT.errorData,
+        backgroundColor: "#dc3545cc",
+        borderRadius:    4,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      plugins:   { legend: { display: false } },
+      scales:    { x: { ticks: { precision: 0 } } },
+    }
+  });
+}
+
+function buildLatencyChart() {
+  const ctx = document.getElementById("latencyChart");
+  if (!ctx) return;
+  // Will be populated from API on first refresh; skip if no data yet
+  latencyChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: [], datasets: [{ label: "Avg ms", data: [], backgroundColor: "#0d6efdcc", borderRadius: 4 }] },
+    options: {
+      plugins: { legend: { display: false } },
+      scales:  { y: { beginAtZero: true, title: { display: true, text: "ms" } } },
+    }
+  });
+}
+
+function buildHourlyChart() {
+  const ctx = document.getElementById("hourlyChart");
+  if (!ctx || !INIT.hourlyLabels.length) return;
+  hourlyChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: INIT.hourlyLabels,
+      datasets: [
+        {
+          label:       "Total",
+          data:        INIT.hourlyTotal,
+          borderColor: "#0d6efd",
+          backgroundColor: "#0d6efd22",
+          fill:        true,
+          tension:     0.3,
+          pointRadius: 3,
+        },
+        {
+          label:       "Failed",
+          data:        INIT.hourlyFailed,
+          borderColor: "#dc3545",
+          backgroundColor: "#dc354522",
+          fill:        true,
+          tension:     0.3,
+          pointRadius: 3,
+        },
+      ]
+    },
+    options: {
+      scales: {
+        x: { ticks: { maxTicksLimit: 12, font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+      plugins: { legend: { labels: { font: { size: 11 } } } },
+    }
+  });
+}
+
+// ── DOM update helpers ────────────────────────────────────────────────────────
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setWidth(id, pct) {
+  const el = document.getElementById(id);
+  if (el) el.style.width = Math.min(100, Math.max(0, pct)) + "%";
+}
+
+function setColour(id, rate, threshHigh, threshLow) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("text-success", "text-warning", "text-danger");
+  el.classList.add(rate >= threshHigh ? "text-success" : rate >= threshLow ? "text-warning" : "text-danger");
+}
+
+// ── Flag row builder ──────────────────────────────────────────────────────────
+function flagBadge(type) {
+  const map = { INCOMPLETE: "text-bg-danger", DELAYED: "text-bg-warning text-dark" };
+  const cls = map[type] || "text-bg-secondary";
+  return `<span class="badge ${cls}">${type}</span>`;
+}
+
+function statusBadge(s) {
+  const map = {
+    TRANSFORMED: "text-bg-success",
+    FAILED:      "text-bg-danger",
+    VALIDATED:   "text-bg-info",
+    RECEIVED:    "text-bg-secondary",
+  };
+  return `<span class="badge ${map[s] || 'text-bg-secondary'}">${s}</span>`;
+}
+
+function renderFlagsTable(flags) {
+  const tbody = document.getElementById("flagsBody");
+  if (!tbody) return;
+  if (!flags.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-success py-4">No quality flags — all messages are complete and on time.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = flags.map(f => `
+    <tr>
+      <td>${flagBadge(f.flag_type)}</td>
+      <td><span class="badge bg-primary-subtle text-primary-emphasis">${f.message_type}</span></td>
+      <td class="font-monospace small">${f.patient_id}</td>
+      <td>${statusBadge(f.processing_status)}</td>
+      <td class="small text-muted">${f.reason}</td>
+      <td class="small text-nowrap text-muted">${(f.created_at || "").slice(0, 19)}</td>
+    </tr>`).join("");
+}
+
+function renderRecentTable(rows) {
+  const tbody = document.getElementById("recentBody");
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No messages.</td></tr>`;
+    return;
+  }
+  const statusCls = { TRANSFORMED: "text-bg-success", FAILED: "text-bg-danger", VALIDATED: "text-bg-info", RECEIVED: "text-bg-secondary" };
+  tbody.innerHTML = rows.map(m => `
+    <tr>
+      <td class="small text-nowrap text-muted">${(m.created_at || "").slice(0, 19)}</td>
+      <td><span class="badge bg-primary-subtle text-primary-emphasis">${m.message_type || "—"}</span></td>
+      <td class="font-monospace small">${m.patient_id || "—"}</td>
+      <td><span class="badge ${statusCls[m.processing_status] || 'text-bg-secondary'}">${m.processing_status}</span></td>
+      <td class="small">${m.error_category && m.error_category !== "NONE"
+        ? `<span class="badge text-bg-warning text-dark">${m.error_category}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td class="text-center">${m.has_x12
+        ? '<span class="badge bg-success-subtle text-success-emphasis">Yes</span>'
+        : '<span class="text-muted small">—</span>'}</td>
+    </tr>`).join("");
+}
+
+// ── Main update function (called after each API response) ─────────────────────
+function updateDashboard(d) {
+  // Summary cards
+  setText("cardSuccessRate", d.success_rate + "%");
+  setText("cardTransformed", d.total_hl7);
+  setText("cardLatency",     d.avg_latency_label);
+  setText("cardTraceCount",  d.trace_total);
+  setText("cardFlagged",     d.flagged_count);
+  setText("cardIncomplete",  d.incomplete_count);
+  setText("cardDelayed",     d.delayed_count);
+  setText("cardErrorRate",   d.error_rate + "%");
+  setWidth("successBar", d.success_rate);
+  setWidth("errorBar",   d.error_rate);
+  setColour("cardSuccessRate", d.success_rate, 90, 70);
+  setColour("cardErrorRate",   100 - d.error_rate, 90, 70);
+
+  // Source bar
+  setText("srcHl7",         d.total_hl7);
+  setText("srcTrace",       d.trace_total);
+  setText("srcAdt",         d.adt_total);
+  setText("srcDft",         d.dft_total);
+  setText("srcTraceFailed", d.trace_failed);
+  setText("flagsBadge",     d.flagged_count);
+
+  // Last-refresh timestamp
+  const ts = d.refreshed_at ? new Date(d.refreshed_at).toLocaleTimeString() : "—";
+  setText("lastRefresh", ts);
+
+  // Status doughnut
+  if (statusChart) {
+    statusChart.data.datasets[0].data = d.status_data;
+    statusChart.update("none");
+  }
+
+  // Error by type bar
+  if (errorChart) {
+    errorChart.data.labels                 = d.error_labels;
+    errorChart.data.datasets[0].data       = d.error_data;
+    errorChart.update("none");
+  }
+
+  // Latency bar (built from latency_by_type array)
+  if (latencyChart && d.latency_by_type) {
+    latencyChart.data.labels               = d.latency_by_type.map(r => r.input_type);
+    latencyChart.data.datasets[0].data     = d.latency_by_type.map(r => r.avg_ms);
+    latencyChart.update("none");
+  }
+
+  // Hourly line
+  if (hourlyChart) {
+    hourlyChart.data.labels                = d.hourly_labels;
+    hourlyChart.data.datasets[0].data      = d.hourly_total;
+    hourlyChart.data.datasets[1].data      = d.hourly_failed;
+    hourlyChart.update("none");
+  }
+
+  // Tables
+  renderFlagsTable(d.flags   || []);
+  renderRecentTable(d.recent || []);
+}
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────────
+let refreshTimer;
+
+async function fetchMetrics() {
+  const badge = document.getElementById("refreshBadge");
+  try {
+    if (badge) { badge.className = "badge text-bg-warning me-2"; badge.textContent = "Refreshing…"; }
+    const resp = await fetch(METRICS_URL);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    updateDashboard(data);
+    if (badge) { badge.className = "badge text-bg-success me-2"; badge.textContent = "Live"; }
+  } catch (err) {
+    console.warn("DQ refresh failed:", err);
+    if (badge) { badge.className = "badge text-bg-danger me-2"; badge.textContent = "Error"; }
+  }
+}
+
+// ── Initialise on DOM ready ───────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  buildStatusChart();
+  buildErrorChart();
+  buildLatencyChart();
+  buildHourlyChart();
+
+  // Populate latency chart if data already came from server
+  if (latencyChart && INIT.latencyByType) {
+    latencyChart.data.labels           = INIT.latencyByType.map(r => r.input_type);
+    latencyChart.data.datasets[0].data = INIT.latencyByType.map(r => r.avg_ms);
+    latencyChart.update("none");
+  }
+
+  setText("lastRefresh", new Date().toLocaleTimeString());
+  refreshTimer = setInterval(fetchMetrics, REFRESH_MS);
+});
+</script>
+{% endblock %}

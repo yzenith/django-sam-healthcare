@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}ADT Simulation – Recent Events{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <h1 class="mb-2">ADT Message Simulation</h1>
+    <p class="text-muted mb-0">
+      Simulated <strong>HL7 v2.3 ADT</strong> events — Admit (A01), Transfer (A02),
+      Discharge (A03), and Update (A08). Trigger a new event or browse the message log.
+    </p>
+  </div>
+  <div class="col-lg-4 text-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#triggerModal">
+      + Trigger ADT Event
+    </button>
+  </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.total }}</div>
+        <div class="small text-muted">Total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-info">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-info">{{ totals.a01 }}</div>
+        <div class="small text-muted">Admit (A01)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-warning">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-warning">{{ totals.a02 }}</div>
+        <div class="small text-muted">Transfer (A02)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-success">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">{{ totals.a03 }}</div>
+        <div class="small text-muted">Discharge (A03)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-secondary">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-secondary">{{ totals.a08 }}</div>
+        <div class="small text-muted">Update (A08)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-danger">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-danger">{{ totals.failed }}</div>
+        <div class="small text-muted">Failed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+  <span class="text-muted small">Event:</span>
+  <a href="{% url 'adt-list' %}"
+     class="btn btn-sm {% if not current_event %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for value, label in event_choices %}
+  <a href="{% url 'adt-list' %}?event_type={{ value }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_pid %}&patient_id={{ current_pid }}{% endif %}"
+     class="btn btn-sm {% if current_event == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ value }}
+  </a>
+  {% endfor %}
+
+  <span class="text-muted small ms-3">Status:</span>
+  <a href="{% url 'adt-list' %}{% if current_event %}?event_type={{ current_event }}{% endif %}"
+     class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for value, label in status_choices %}
+  <a href="{% url 'adt-list' %}?status={{ value }}{% if current_event %}&event_type={{ current_event }}{% endif %}{% if current_pid %}&patient_id={{ current_pid }}{% endif %}"
+     class="btn btn-sm {% if current_status == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+
+  <form method="get" action="{% url 'adt-list' %}" class="ms-3 d-flex gap-1">
+    {% if current_event %}<input type="hidden" name="event_type" value="{{ current_event }}">{% endif %}
+    {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+    <input type="text" name="patient_id" value="{{ current_pid }}"
+           placeholder="Filter by MRN…"
+           class="form-control form-control-sm" style="width:160px;">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>
+    {% if current_event or current_status or current_pid %}
+      <a href="{% url 'adt-list' %}" class="btn btn-sm btn-outline-danger">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Messages table -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Event</th>
+            <th>Patient ID</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Note</th>
+            <th>HL7 Preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for msg in messages %}
+          <tr>
+            <td class="small text-nowrap">{{ msg.timestamp|date:"Y-m-d H:i:s" }}</td>
+            <td>
+              {% if msg.event_type == "A01" %}
+                <span class="badge bg-info-subtle text-info-emphasis">ADT^A01</span>
+              {% elif msg.event_type == "A02" %}
+                <span class="badge bg-warning-subtle text-warning-emphasis">ADT^A02</span>
+              {% elif msg.event_type == "A03" %}
+                <span class="badge bg-success-subtle text-success-emphasis">ADT^A03</span>
+              {% elif msg.event_type == "A08" %}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">ADT^A08</span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">ADT^{{ msg.event_type }}</span>
+              {% endif %}
+              <div class="small text-muted mt-1" style="font-size:0.72rem;">{{ msg.get_event_type_display }}</div>
+            </td>
+            <td class="font-monospace small">{{ msg.patient_id }}</td>
+            <td>
+              {% if msg.status == "GENERATED" %}
+                <span class="badge text-bg-primary">Generated</span>
+              {% elif msg.status == "SENT" %}
+                <span class="badge text-bg-success">Sent</span>
+              {% elif msg.status == "FAILED" %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{{ msg.status }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ msg.location|default:"—" }}</td>
+            <td class="small text-muted">{{ msg.note|default:"—"|truncatechars:40 }}</td>
+            <td class="small">
+              <button class="btn btn-sm btn-outline-secondary font-monospace"
+                      style="font-size:0.7rem;"
+                      data-bs-toggle="modal"
+                      data-bs-target="#hl7Modal{{ msg.pk }}">
+                View HL7
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">
+              No ADT messages yet.
+              <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#triggerModal">
+                Trigger one now
+              </button>.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- HL7 detail modals -->
+{% for msg in messages %}
+<div class="modal fade" id="hl7Modal{{ msg.pk }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          ADT^{{ msg.event_type }} &mdash; {{ msg.patient_id }}
+          <span class="small text-muted fw-normal ms-2">{{ msg.timestamp|date:"Y-m-d H:i:s" }}</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre class="bg-dark text-light p-3 rounded" style="font-size:0.78rem;white-space:pre-wrap;word-break:break-all;">{{ msg.raw_hl7 }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Trigger modal -->
+<div class="modal fade" id="triggerModal" tabindex="-1" aria-labelledby="triggerModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="triggerModalLabel">Trigger ADT Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="triggerAlert" class="d-none"></div>
+        <div class="mb-3">
+          <label for="pidInput" class="form-label">Patient ID (MRN)</label>
+          <input type="text" id="pidInput" class="form-control font-monospace"
+                 placeholder="e.g. MRN-00123" value="MRN-{{ "00"|add:"01" }}">
+        </div>
+        <div class="mb-3">
+          <label for="eventSelect" class="form-label">Event Type</label>
+          <select id="eventSelect" class="form-select">
+            {% for value, label in event_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="noteInput" class="form-label">Note <span class="text-muted">(optional)</span></label>
+          <input type="text" id="noteInput" class="form-control" placeholder="e.g. Scheduled elective admission">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="triggerBtn">Generate &amp; Store</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const btn = document.getElementById("triggerBtn");
+  const alert = document.getElementById("triggerAlert");
+
+  function showAlert(cls, msg) {
+    alert.className = "alert alert-" + cls;
+    alert.textContent = msg;
+    alert.classList.remove("d-none");
+  }
+
+  btn.addEventListener("click", function () {
+    const patient_id = document.getElementById("pidInput").value.trim();
+    const event_type = document.getElementById("eventSelect").value;
+    const note       = document.getElementById("noteInput").value.trim();
+
+    if (!patient_id) { showAlert("warning", "Patient ID is required."); return; }
+
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+
+    fetch("{% url 'adt-trigger' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: JSON.stringify({ patient_id, event_type, note }),
+    })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok) {
+        showAlert("success", "ADT^" + event_type + " generated for " + patient_id + " (id=" + data.id + "). Refreshing…");
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        const detail = JSON.stringify(data);
+        showAlert("danger", "Error: " + detail);
+        btn.disabled = false;
+        btn.textContent = "Generate & Store";
+      }
+    })
+    .catch(err => {
+      showAlert("danger", "Network error: " + err);
+      btn.disabled = false;
+      btn.textContent = "Generate & Store";
+    });
+  });
+})();
+</script>
+{% endblock %}

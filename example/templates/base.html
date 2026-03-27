@@ -60,6 +60,12 @@
           </ul>
         </li>
 
+        <!-- ADT Simulation -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'adt-list' %}active{% endif %}"
+             href="{% url 'adt-list' %}">ADT Sim</a>
+        </li>
+
         <!-- FHIR & Standards dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle

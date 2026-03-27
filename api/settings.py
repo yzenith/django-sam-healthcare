@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'example',
     'logtrace',
+    'adt',
 ]
 
 REST_FRAMEWORK = {
@@ -108,6 +109,7 @@ LOGGING = {
         'django': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
         'example': {'handlers': ['console'], 'level': 'INFO',    'propagate': False},
         'logtrace': {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
+        'adt':      {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
     },
 }
 

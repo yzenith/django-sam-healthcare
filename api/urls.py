@@ -23,6 +23,8 @@ urlpatterns = [
     path('', include('example.urls')),
     path("api/trace/", include("logtrace.api_urls")),   # JSON only
     path("trace/", include("logtrace.ui_urls")),        # HTML only
+    path("api/adt/",  include("adt.api_urls")),         # ADT REST API
+    path("adt/",      include("adt.ui_urls")),          # ADT HTML UI
 
     # OpenAPI schema + docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

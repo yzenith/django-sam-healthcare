@@ -116,7 +116,7 @@
             <th>Event</th>
             <th>Patient ID</th>
             <th>Status</th>
-            <th>Location</th>
+            <th>DFT Billing</th>
             <th>Note</th>
             <th>HL7 Preview</th>
           </tr>
@@ -151,7 +151,17 @@
                 <span class="badge text-bg-secondary">{{ msg.status }}</span>
               {% endif %}
             </td>
-            <td class="small text-muted">{{ msg.location|default:"—" }}</td>
+            <td class="text-center">
+              {% if msg.pk in adt_ids_with_dft %}
+                <a href="{% url 'dft-list' %}?patient_id={{ msg.patient_id }}"
+                   class="badge bg-purple-subtle text-purple-emphasis text-decoration-none"
+                   style="background-color:#ede9fe;color:#6d28d9;">DFT^P03</a>
+              {% elif msg.event_type == "A01" or msg.event_type == "A03" %}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">pending</span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
             <td class="small text-muted">{{ msg.note|default:"—"|truncatechars:40 }}</td>
             <td class="small">
               <button class="btn btn-sm btn-outline-secondary font-monospace"

@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}DFT Billing – Revenue Cycle Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-9">
+    <h1 class="mb-1">DFT^P03 – Billing &amp; Revenue Cycle</h1>
+    <p class="text-muted mb-0">
+      <strong>Detailed Financial Transaction</strong> messages generated downstream of ADT events.
+      Each DFT^P03 carries FT1 charge lines that map 1-to-1 with X12 837P service lines,
+      completing the <strong>ADT → DFT → 837P</strong> revenue cycle chain.
+    </p>
+  </div>
+  <div class="col-lg-3 text-end d-flex flex-column justify-content-center gap-2">
+    <a href="{% url 'adt-list' %}" class="btn btn-outline-secondary btn-sm">← ADT Messages</a>
+    <a href="{% url 'claim-reconciliation' %}" class="btn btn-outline-secondary btn-sm">Claims Reconciliation →</a>
+  </div>
+</div>
+
+<!-- Revenue cycle flow banner -->
+<div class="card border-0 bg-body-secondary mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex align-items-center justify-content-center flex-wrap gap-2 text-center">
+      <div class="px-3 py-2 rounded bg-info-subtle text-info-emphasis fw-semibold small">
+        ADT^A01<br><span class="fw-normal text-muted" style="font-size:0.7rem;">Admit Patient</span>
+      </div>
+      <div class="text-muted fw-bold">→</div>
+      <div class="px-3 py-2 rounded bg-warning-subtle text-warning-emphasis fw-semibold small">
+        DFT^P03<br><span class="fw-normal text-muted" style="font-size:0.7rem;">Post Charges (FT1)</span>
+      </div>
+      <div class="text-muted fw-bold">→</div>
+      <div class="px-3 py-2 rounded bg-success-subtle text-success-emphasis fw-semibold small">
+        X12 837P<br><span class="fw-normal text-muted" style="font-size:0.7rem;">Professional Claim</span>
+      </div>
+      <div class="text-muted fw-bold">→</div>
+      <div class="px-3 py-2 rounded" style="background:#ede9fe;color:#6d28d9;" class="fw-semibold small">
+        <span class="fw-semibold small">X12 835<br><span class="fw-normal text-muted" style="font-size:0.7rem;">ERA / Remittance</span></span>
+      </div>
+      <div class="ms-4 border-start ps-4">
+        <div class="px-3 py-2 rounded bg-success-subtle text-success-emphasis fw-semibold small">
+          ADT^A03<br><span class="fw-normal text-muted" style="font-size:0.7rem;">Discharge Patient</span>
+        </div>
+        <div class="text-muted fw-bold text-center">↓</div>
+        <div class="px-3 py-2 rounded bg-warning-subtle text-warning-emphasis fw-semibold small">
+          DFT^P03<br><span class="fw-normal text-muted" style="font-size:0.7rem;">Finalize Services (FT1)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ totals.total|default:0 }}</div>
+        <div class="small text-muted">DFT Messages</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center h-100 border-success">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">
+          ${% if totals.total_charges %}{{ totals.total_charges|floatformat:2 }}{% else %}0.00{% endif %}
+        </div>
+        <div class="small text-muted">Total Charges</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-info">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-info">{{ totals.a01_count|default:0 }}</div>
+        <div class="small text-muted">From A01 Admit</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-warning">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-warning-emphasis">{{ totals.a03_count|default:0 }}</div>
+        <div class="small text-muted">From A03 Discharge</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center h-100 border-danger">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-danger">{{ totals.failed|default:0 }}</div>
+        <div class="small text-muted">Failed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+  <span class="text-muted small">Trigger:</span>
+  <a href="{% url 'dft-list' %}{% if current_pid %}?patient_id={{ current_pid }}{% endif %}"
+     class="btn btn-sm {% if not current_event %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+  {% for value, label in trigger_choices %}
+  <a href="{% url 'dft-list' %}?trigger_event={{ value }}{% if current_pid %}&patient_id={{ current_pid }}{% endif %}"
+     class="btn btn-sm {% if current_event == value %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ value }}
+  </a>
+  {% endfor %}
+
+  <form method="get" action="{% url 'dft-list' %}" class="ms-3 d-flex gap-1 flex-wrap">
+    {% if current_event %}<input type="hidden" name="trigger_event" value="{{ current_event }}">{% endif %}
+    <input type="text" name="patient_id" value="{{ current_pid }}"
+           placeholder="MRN…" class="form-control form-control-sm" style="width:130px;">
+    <input type="text" name="encounter_id" value="{{ current_enc }}"
+           placeholder="Encounter ID…" class="form-control form-control-sm" style="width:160px;">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>
+    {% if current_pid or current_enc or current_event or current_status %}
+      <a href="{% url 'dft-list' %}" class="btn btn-sm btn-outline-danger">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- DFT messages table -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Trigger</th>
+            <th>Patient MRN</th>
+            <th>Encounter</th>
+            <th>Claim ID</th>
+            <th class="text-end">Total Charges</th>
+            <th class="text-center">Lines</th>
+            <th>Status</th>
+            <th>ADT Source</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dft in dft_messages %}
+          <tr>
+            <td class="small text-nowrap">{{ dft.timestamp|date:"Y-m-d H:i:s" }}</td>
+            <td>
+              {% if dft.trigger_event == "A01" %}
+                <span class="badge bg-info-subtle text-info-emphasis">ADT^A01</span>
+              {% elif dft.trigger_event == "A03" %}
+                <span class="badge bg-success-subtle text-success-emphasis">ADT^A03</span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">Manual</span>
+              {% endif %}
+              <span class="text-muted small d-block" style="font-size:0.7rem;">→ DFT^P03</span>
+            </td>
+            <td class="font-monospace small">{{ dft.patient_id }}</td>
+            <td class="font-monospace small text-muted">{{ dft.encounter_id|truncatechars:20 }}</td>
+            <td class="font-monospace small">{{ dft.claim_id }}</td>
+            <td class="text-end fw-semibold">${{ dft.total_charges|floatformat:2 }}</td>
+            <td class="text-center">
+              <span class="badge bg-secondary-subtle text-secondary-emphasis">
+                {{ dft.charges.count }}
+              </span>
+            </td>
+            <td>
+              {% if dft.status == "GENERATED" %}
+                <span class="badge text-bg-primary">Generated</span>
+              {% elif dft.status == "SENT" %}
+                <span class="badge text-bg-success">Sent</span>
+              {% elif dft.status == "FAILED" %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if dft.adt_message %}
+                <a href="{% url 'adt-list' %}?patient_id={{ dft.patient_id }}"
+                   class="text-decoration-none text-muted">
+                  ADT #{{ dft.adt_message.pk }}
+                </a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#dftModal{{ dft.pk }}">
+                FT1 / 837P
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="10" class="text-center text-muted py-5">
+              No DFT messages yet. Trigger an
+              <a href="{% url 'adt-list' %}">ADT A01 or A03 event</a>
+              to auto-generate the first billing message.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DFT detail modals: FT1 charge lines + X12 837P -->
+{% for dft in dft_messages %}
+<div class="modal fade" id="dftModal{{ dft.pk }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          DFT^P03 &mdash; {{ dft.patient_id }}
+          <span class="small text-muted fw-normal ms-2">claim {{ dft.claim_id }}</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- FT1 charge lines -->
+        <h6 class="mb-2">FT1 Charge Lines
+          <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">
+            {{ dft.charges.count }} line{% if dft.charges.count != 1 %}s{% endif %}
+          </span>
+          <span class="text-muted small ms-2">→ X12 837P LX/SV1 service lines</span>
+        </h6>
+        <div class="table-responsive mb-4">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>FT1-1<br><small class="fw-normal text-muted">Line</small></th>
+                <th>FT1-2<br><small class="fw-normal text-muted">Charge ID</small></th>
+                <th>FT1-6<br><small class="fw-normal text-muted">Type</small></th>
+                <th>FT1-25<br><small class="fw-normal text-muted">CPT/Procedure</small></th>
+                <th>FT1-11<br><small class="fw-normal text-muted">Description</small></th>
+                <th>FT1-15<br><small class="fw-normal text-muted">Rev Code</small></th>
+                <th>FT1-16<br><small class="fw-normal text-muted">Dept</small></th>
+                <th>FT1-8<br><small class="fw-normal text-muted">Qty</small></th>
+                <th>FT1-9<br><small class="fw-normal text-muted">Unit $</small></th>
+                <th>FT1-7<br><small class="fw-normal text-muted">Total $</small></th>
+                <th>837P<br><small class="fw-normal text-muted">Maps to</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in dft.charges.all %}
+              <tr>
+                <td class="text-center">{{ c.line_number }}</td>
+                <td class="font-monospace small">{{ c.charge_id }}</td>
+                <td>
+                  {% if c.transaction_type == "CG" %}
+                    <span class="badge text-bg-primary">CG</span>
+                  {% elif c.transaction_type == "CR" %}
+                    <span class="badge text-bg-warning text-dark">CR</span>
+                  {% else %}
+                    <span class="badge text-bg-success">PY</span>
+                  {% endif %}
+                </td>
+                <td class="font-monospace">{{ c.procedure_code }}</td>
+                <td class="small">{{ c.procedure_description }}</td>
+                <td class="font-monospace small">{{ c.revenue_code }}</td>
+                <td class="small">{{ c.department }}</td>
+                <td class="text-center">{{ c.quantity }}</td>
+                <td class="text-end">${{ c.unit_amount|floatformat:2 }}</td>
+                <td class="text-end fw-semibold">${{ c.total_amount|floatformat:2 }}</td>
+                <td class="small text-muted">
+                  LX*{{ c.line_number }}<br>
+                  SV1*HC:{{ c.procedure_code }}
+                </td>
+              </tr>
+              {% endfor %}
+              <tr class="table-light">
+                <td colspan="9" class="text-end fw-semibold">Total Billed</td>
+                <td class="text-end fw-bold text-success">${{ dft.total_charges|floatformat:2 }}</td>
+                <td class="small text-muted">CLM02</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Raw HL7 DFT -->
+        <h6 class="mb-2">Raw HL7 DFT^P03</h6>
+        <pre class="bg-dark text-light p-3 rounded mb-4" style="font-size:0.73rem;white-space:pre-wrap;word-break:break-all;">{{ dft.raw_hl7 }}</pre>
+
+        <!-- X12 837P -->
+        {% if dft.x12_837 %}
+        <h6 class="mb-2">Generated X12 837P
+          <span class="text-muted small fw-normal ms-1">— professional claim from FT1 charges</span>
+        </h6>
+        <pre class="bg-dark text-light p-3 rounded" style="font-size:0.73rem;white-space:pre-wrap;word-break:break-all;">{{ dft.x12_837 }}</pre>
+        {% endif %}
+
+      </div>
+      <div class="modal-footer justify-content-between">
+        <span class="text-muted small">
+          Encounter: <code>{{ dft.encounter_id }}</code>
+          &bull; Triggered by ADT^{{ dft.trigger_event }}
+          {% if dft.adt_message %} (ADT #{{ dft.adt_message.pk }}){% endif %}
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

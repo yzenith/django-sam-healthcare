@@ -60,10 +60,17 @@
           </ul>
         </li>
 
-        <!-- ADT Simulation -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'adt-list' %}active{% endif %}"
-             href="{% url 'adt-list' %}">ADT Sim</a>
+        <!-- ADT / DFT dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle
+               {% if request.resolver_match.url_name in 'adt-list,dft-list' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            ADT / DFT
+          </a>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li><a class="dropdown-item" href="{% url 'adt-list' %}">ADT Simulation</a></li>
+            <li><a class="dropdown-item" href="{% url 'dft-list' %}">DFT Billing (P03)</a></li>
+          </ul>
         </li>
 
         <!-- FHIR & Standards dropdown -->

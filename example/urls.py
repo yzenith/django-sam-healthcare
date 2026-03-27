@@ -7,7 +7,7 @@ from example.views import (
     mirth_message_detail, mirth_messages, home,
     patient_import_detail, patient_import_page, patient_import_rejects_csv,
     health, claim_reconciliation_report, webhook_delivery_log,
-    seed_demo_data_view, retry_webhook,
+    seed_demo_data_view, retry_webhook, integration_specs,
 )
 from example.fhir_views import (
     fhir_metadata,
@@ -70,6 +70,7 @@ urlpatterns = [
 
     # ── Static pages ─────────────────────────────────────────────────────────
     path("overview/", TemplateView.as_view(template_name="overview.html"), name="overview"),
+    path("integrations/", integration_specs, name="integration-specs"),
     path("error-catalog/", TemplateView.as_view(template_name="error_catalog.html"), name="error-catalog"),
     path("case-studies/", TemplateView.as_view(template_name="case_studies/index.html"), name="case-studies-index"),
     path("case-studies/incident-001/",

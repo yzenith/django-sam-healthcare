@@ -885,6 +885,90 @@ def seed_demo_data_view(request):
     return redirect("home")
 
 
+def integration_specs(request):
+    """
+    GET /integrations/
+    Integration Specifications documentation page.
+    Pulls live stats from every model so the page reflects real data.
+    """
+    from adt.models import ADTMessage, DFTMessage
+    from logtrace.models import TraceLog
+
+    def _last(qs):
+        obj = qs.order_by("-id").first()
+        return obj.created_at if obj and hasattr(obj, "created_at") else None
+
+    def _last_ts(qs):
+        obj = qs.order_by("-id").first()
+        return obj.timestamp if obj and hasattr(obj, "timestamp") else None
+
+    # HL7 message type stats
+    hl7_types = {}
+    for mt in ("ADT", "ORU", "ORM", "DFT"):
+        qs = HL7MessageLog.objects.filter(message_type__startswith=mt)
+        hl7_types[mt] = {
+            "count": qs.count(),
+            "last":  _last(qs),
+            "failed": qs.filter(processing_status="FAILED").count(),
+        }
+
+    # ADT / DFT native model stats
+    adt_stats = {
+        "count": ADTMessage.objects.count(),
+        "last":  _last_ts(ADTMessage.objects.all()),
+        "by_event": {
+            ev: ADTMessage.objects.filter(event_type=ev).count()
+            for ev in ("A01", "A02", "A03", "A08")
+        },
+    }
+    dft_stats = {
+        "count": DFTMessage.objects.count(),
+        "last":  _last_ts(DFTMessage.objects.all()),
+    }
+
+    # FHIR stats (PatientRecord is the canonical patient store)
+    fhir_stats = {
+        "patient_count": PatientRecord.objects.count(),
+        "last_patient":  _last(PatientRecord.objects.all()),
+    }
+
+    # X12 claim stats
+    claim_stats = {
+        "count": ClaimRecord.objects.count(),
+        "paid":  ClaimRecord.objects.filter(status="PAID").count(),
+        "denied": ClaimRecord.objects.filter(status="DENIED").count(),
+        "last":  _last(ClaimRecord.objects.all()),
+    }
+
+    # Flat-file ingest stats (table may not exist on local SQLite before migration)
+    try:
+        from sftpingest.models import SFTPIngestRun
+        sftp_stats = {
+            "count":   SFTPIngestRun.objects.count(),
+            "patient": SFTPIngestRun.objects.filter(schema_type="PATIENT").count(),
+            "clinical": SFTPIngestRun.objects.filter(schema_type="CLINICAL").count(),
+            "last":    _last(SFTPIngestRun.objects.all()),
+        }
+    except Exception:
+        sftp_stats = {"count": 0, "patient": 0, "clinical": 0, "last": None}
+
+    # TraceLog stats
+    trace_stats = {
+        "count": TraceLog.objects.count(),
+        "last":  _last(TraceLog.objects.all()),
+    }
+
+    return render(request, "integration_specs.html", {
+        "hl7_types":   hl7_types,
+        "adt_stats":   adt_stats,
+        "dft_stats":   dft_stats,
+        "fhir_stats":  fhir_stats,
+        "claim_stats": claim_stats,
+        "sftp_stats":  sftp_stats,
+        "trace_stats": trace_stats,
+    })
+
+
 def health(request):
     """
     GET /health/

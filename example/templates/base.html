@@ -44,6 +44,12 @@
              href="{% url 'overview' %}">Overview</a>
         </li>
 
+        <!-- Integration Specs -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'integration-specs' %}active{% endif %}"
+             href="{% url 'integration-specs' %}">Int. Specs</a>
+        </li>
+
         <!-- Pipeline dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle

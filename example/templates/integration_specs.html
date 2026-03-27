@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Integration Specifications | Healthcare Integration{% endblock %}
+
+{% block content %}
+
+<!-- ── Page header ──────────────────────────────────────────────────────── -->
+<div class="d-flex align-items-start justify-content-between mb-2">
+  <div>
+    <h2 class="mb-1">Integration Specifications</h2>
+    <p class="text-muted mb-0">
+      Live technical reference for every message format, endpoint, and data standard
+      supported by this pipeline. Row counts and timestamps are pulled directly from
+      the database.
+    </p>
+  </div>
+  <span class="badge bg-success mt-1">Live Data</span>
+</div>
+
+<!-- ── Quick-nav pills ──────────────────────────────────────────────────── -->
+<nav class="mb-4">
+  <ul class="nav nav-pills flex-wrap gap-1 small">
+    <li class="nav-item"><a class="nav-link py-1 px-2 active" href="#hl7-adt">HL7 ADT</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-oru">HL7 ORU</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-orm">HL7 ORM</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-dft">HL7 DFT</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#fhir-r4">FHIR R4</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#x12-837">X12 837P</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#x12-835">X12 835</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#flat-files">Flat Files</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#tracing">Trace / Audit</a></li>
+  </ul>
+</nav>
+
+<!-- ── Summary stat strip ───────────────────────────────────────────────── -->
+<div class="row g-2 mb-5">
+  {% with hl7_total=hl7_types.ADT.count|add:hl7_types.ORU.count|add:hl7_types.ORM.count|add:hl7_types.DFT.count %}
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-primary bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-primary">{{ adt_stats.count }}</div>
+        <div class="small text-muted">ADT Events</div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-purple bg-opacity-10" style="background:rgba(111,66,193,.08)">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold" style="color:#6f42c1">{{ dft_stats.count }}</div>
+        <div class="small text-muted">DFT Messages</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-success bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">{{ fhir_stats.patient_count }}</div>
+        <div class="small text-muted">FHIR Patients</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-warning bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-warning">{{ claim_stats.count }}</div>
+        <div class="small text-muted">X12 Claims</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-info bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-info">{{ sftp_stats.count }}</div>
+        <div class="small text-muted">SFTP Runs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-0 bg-secondary bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-secondary">{{ trace_stats.count }}</div>
+        <div class="small text-muted">Trace Logs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- HL7 v2 ADT                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-adt" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-primary fs-6">HL7 v2.3</span>
+    <h4 class="mb-0">ADT — Admit / Discharge / Transfer</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    ADT messages signal patient movement events in a hospital information system. This pipeline
+    generates HL7 v2.3 ADT messages for four trigger events and auto-fires a downstream
+    DFT^P03 billing message for admissions (A01) and discharges (A03).
+  </p>
+
+  <div class="row g-3 mb-3">
+    <!-- Metadata table -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th class="ps-3">Message type</th><td><code>ADT^A01 · A02 · A03 · A08</code></td></tr>
+            <tr><th class="ps-3">Encoding</th><td>ER7 (pipe-delimited), CR segment separator</td></tr>
+            <tr><th class="ps-3">Segments</th><td><code>MSH · EVN · PID · PV1</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td><code>patient_id</code>, <code>event_type</code></td></tr>
+            <tr><th class="ps-3">Trigger endpoint</th><td><code class="text-success">POST /api/adt/trigger/</code></td></tr>
+            <tr><th class="ps-3">List endpoint</th><td><code>GET /api/adt/messages/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'adt-list' %}">ADT Simulation →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live stats -->
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Total events</th><td><strong>{{ adt_stats.count }}</strong></td></tr>
+            <tr><th class="ps-3">A01 (Admit)</th><td>{{ adt_stats.by_event.A01 }}</td></tr>
+            <tr><th class="ps-3">A02 (Transfer)</th><td>{{ adt_stats.by_event.A02 }}</td></tr>
+            <tr><th class="ps-3">A03 (Discharge)</th><td>{{ adt_stats.by_event.A03 }}</td></tr>
+            <tr><th class="ps-3">A08 (Update)</th><td>{{ adt_stats.by_event.A08 }}</td></tr>
+            <tr class="table-light"><th class="ps-3">Last event</th><td>
+              {% if adt_stats.last %}{{ adt_stats.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sample payload -->
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Payload — ADT^A01</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">MSH|^~\&|DEMO|FAC1|RCV|FAC2|20240315120000||ADT^A01|MSG001|P|2.3
+EVN|A01|20240315120000
+PID|1||P-00042^^^FAC&amp;1.2.3.4.5&amp;ISO||Smith^John||19800315|M
+PV1|1|I|3W^301^A^FAC1|||||||SUR|||ADM|A|||V01</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Required fields -->
+  <div class="card border-0 bg-light">
+    <div class="card-body py-2 px-3 small">
+      <strong>Required fields:</strong>
+      <code class="ms-1">patient_id</code> — Medical Record / patient identifier (maps to PID-3)&nbsp;&nbsp;
+      <code>event_type</code> — one of <code>A01 A02 A03 A08</code> (maps to MSH-9 / EVN-1)
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- HL7 v2 ORU                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-oru" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-primary fs-6">HL7 v2.3</span>
+    <h4 class="mb-0">ORU — Observation Result (Lab)</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    ORU^R01 messages carry structured laboratory and diagnostic results. The pipeline ingests
+    ORU messages through the Mirth connector, maps OBX segments to FHIR
+    <code>DiagnosticReport</code> resources, and stores the full message in
+    <code>HL7MessageLog</code>.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th class="ps-3">Message type</th><td><code>ORU^R01</code></td></tr>
+            <tr><th class="ps-3">Segments</th><td><code>MSH · PID · PV1 · OBR · OBX</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td><code>PID-3</code> (MRN), <code>OBR-4</code> (test), <code>OBX-3/5</code> (result)</td></tr>
+            <tr><th class="ps-3">Ingest endpoint</th><td><code class="text-success">POST /api/mirth/hl7/</code></td></tr>
+            <tr><th class="ps-3">FHIR output</th><td><code>GET /fhir/DiagnosticReport/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'mirth-messages' %}">Mirth Live Feed →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Received</th><td><strong>{{ hl7_types.ORU.count }}</strong></td></tr>
+            <tr><th class="ps-3">Failed</th><td class="text-danger">{{ hl7_types.ORU.failed }}</td></tr>
+            <tr class="table-light"><th class="ps-3">Last received</th><td>
+              {% if hl7_types.ORU.last %}{{ hl7_types.ORU.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Payload — ORU^R01</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">MSH|^~\&|LAB|FAC1|EHR|FAC1|20240315130000||ORU^R01|MSG002|P|2.3
+PID|1||P-00042||Smith^John||19800315|M
+OBR|1||LAB001|85025^CBC^LN|||20240315120000
+OBX|1|NM|718-7^Hemoglobin^LN||14.2|g/dL|13.5-17.5|N|||F</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- HL7 v2 ORM                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-orm" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-primary fs-6">HL7 v2.3</span>
+    <h4 class="mb-0">ORM — Order Message</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    ORM^O01 messages represent clinical order placements (lab, radiology, medication). The
+    pipeline receives orders via the Mirth connector, validates segment structure, and maps
+    to a FHIR <code>ServiceRequest</code> projection.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th class="ps-3">Message type</th><td><code>ORM^O01</code></td></tr>
+            <tr><th class="ps-3">Segments</th><td><code>MSH · PID · PV1 · ORC · OBR</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td><code>PID-3</code> (MRN), <code>ORC-1</code> (order control), <code>OBR-4</code> (service)</td></tr>
+            <tr><th class="ps-3">Ingest endpoint</th><td><code class="text-success">POST /api/mirth/hl7/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'mirth-messages' %}">Mirth Live Feed →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Received</th><td><strong>{{ hl7_types.ORM.count }}</strong></td></tr>
+            <tr><th class="ps-3">Failed</th><td class="text-danger">{{ hl7_types.ORM.failed }}</td></tr>
+            <tr class="table-light"><th class="ps-3">Last received</th><td>
+              {% if hl7_types.ORM.last %}{{ hl7_types.ORM.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Payload — ORM^O01</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">MSH|^~\&|OE|FAC1|LAB|FAC1|20240315131500||ORM^O01|MSG003|P|2.3
+PID|1||P-00042||Smith^John||19800315|M
+ORC|NW|ORD-001||||||20240315131500
+OBR|1|ORD-001||85025^CBC^LN|||20240315131500</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- HL7 v2 DFT                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-dft" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-primary fs-6">HL7 v2.3</span>
+    <span class="badge" style="background:#6f42c1">DFT^P03</span>
+    <h4 class="mb-0">DFT — Detailed Financial Transaction</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    DFT^P03 messages carry itemised charge data (FT1 segments) from the clinical system to
+    the billing engine. Each ADT A01/A03 event automatically generates a DFT^P03 with
+    procedure-specific charge lines, which are then mapped to an X12 837P professional claim.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th class="ps-3">Message type</th><td><code>DFT^P03</code></td></tr>
+            <tr><th class="ps-3">Segments</th><td><code>MSH · EVN · PID · PV1 · FT1 (repeating)</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td><code>FT1-4</code> (service date), <code>FT1-7</code> (transaction type), <code>FT1-10/11</code> (amounts)</td></tr>
+            <tr><th class="ps-3">Auto-trigger</th><td>ADT A01 (admit) / A03 (discharge)</td></tr>
+            <tr><th class="ps-3">List endpoint</th><td><code>GET /api/adt/dft/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'dft-list' %}">DFT Billing →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Total DFTs</th><td><strong>{{ dft_stats.count }}</strong></td></tr>
+            <tr class="table-light"><th class="ps-3">Last message</th><td>
+              {% if dft_stats.last %}{{ dft_stats.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Payload — DFT^P03 (FT1 excerpt)</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">MSH|^~\&|BILLING|FAC1|PAYER|FAC1|20240315120500||DFT^P03|DFT001|P|2.3
+EVN|P03|20240315120500
+PID|1||P-00042||Smith^John
+PV1|1|I|3W^301^A||||||||||ENC-001
+FT1|1|CHG001|ENC-001|20240315|20240315|CG|450.00|1|450.00|
+    |99284^Emergency Dept Visit^CPT||PROV-01|DEPT-ED|BCBS</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- FHIR R4                                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="fhir-r4" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-success fs-6">FHIR R4</span>
+    <h4 class="mb-0">FHIR R4 REST API</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    Downstream FHIR R4 resources are produced by the HL7→FHIR transformation layer. Patient
+    demographics and encounters are queryable via a standards-compliant REST API. A
+    SMART on FHIR <code>/.well-known/smart-configuration</code> endpoint enables OAuth2
+    app authorisation, and the Da Vinci Prior Auth hooks (CRD / PAS) are also active.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Endpoints</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:110px">Capability</th><td><code>GET /fhir/</code></td></tr>
+            <tr><th class="ps-3">Patient</th><td><code>GET /fhir/Patient/</code> · <code>/fhir/Patient/{id}/</code></td></tr>
+            <tr><th class="ps-3">Encounter</th><td><code>GET /fhir/Encounter/</code></td></tr>
+            <tr><th class="ps-3">Diagnostic</th><td><code>GET /fhir/DiagnosticReport/</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td>None — all endpoints read-only GET</td></tr>
+            <tr><th class="ps-3">SMART</th><td><code>GET /.well-known/smart-configuration</code></td></tr>
+            <tr><th class="ps-3">CRD hook</th><td><code class="text-success">POST /api/prior-auth/crd/</code></td></tr>
+            <tr><th class="ps-3">PAS submit</th><td><code class="text-success">POST /api/prior-auth/pas/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'fhir-explorer' %}">FHIR R4 API →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Patient records</th><td><strong>{{ fhir_stats.patient_count }}</strong></td></tr>
+            <tr class="table-light"><th class="ps-3">Last upsert</th><td>
+              {% if fhir_stats.last_patient %}{{ fhir_stats.last_patient|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Response — FHIR Patient</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">{
+  "resourceType": "Patient",
+  "id": "P-00042",
+  "name": [{"family": "Smith", "given": ["John"]}],
+  "birthDate": "1980-03-15",
+  "gender": "male",
+  "address": [{"line": ["123 Main St"], "city": "Boston"}]
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- X12 837P                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="x12-837" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-warning text-dark fs-6">X12 5010</span>
+    <h4 class="mb-0">X12 837P — Professional Claim</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    837P claims are generated automatically from DFT^P03 FT1 charge lines. Each
+    <code>DFTChargeItem</code> maps to one <code>LX / SV1</code> service line segment.
+    The 837P is stored raw against the <code>DFTMessage</code> and linked to a
+    <code>ClaimRecord</code> for downstream 835 reconciliation.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>ASC X12 005010X222A2</td></tr>
+            <tr><th class="ps-3">Transaction</th><td><code>837P</code> — Professional Claim</td></tr>
+            <tr><th class="ps-3">Key segments</th><td><code>ISA · GS · ST · CLM · LX · SV1 · SE</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Required</th><td><code>CLM01</code> (claim ID), <code>CLM02</code> (billed amount), <code>SV1-1</code> (procedure code)</td></tr>
+            <tr><th class="ps-3">Generated by</th><td>DFT service on A01/A03 ADT events</td></tr>
+            <tr><th class="ps-3">Stored on</th><td><code>DFTMessage.x12_837</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'dft-list' %}">Revenue Cycle →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Total claims</th><td><strong>{{ claim_stats.count }}</strong></td></tr>
+            <tr><th class="ps-3">Paid</th><td class="text-success">{{ claim_stats.paid }}</td></tr>
+            <tr><th class="ps-3">Denied</th><td class="text-danger">{{ claim_stats.denied }}</td></tr>
+            <tr class="table-light"><th class="ps-3">Last claim</th><td>
+              {% if claim_stats.last %}{{ claim_stats.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Segment — 837P CLM/SV1</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">CLM*CLM-00042-001*450.00***11:B:1*Y*A*Y*I~
+LX*1~
+SV1*HC:99284*450.00*UN*1**1~
+DTP*472*D8*20240315~
+LX*2~
+SV1*HC:36415*25.00*UN*1**1~</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- X12 835                                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="x12-835" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-warning text-dark fs-6">X12 5010</span>
+    <h4 class="mb-0">X12 835 — Remittance Advice (ERA)</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    The 835 Electronic Remittance Advice (ERA) is simulated at claim generation time. Each
+    <code>ClaimRecord</code> stores billed / paid / adjustment amounts together with the
+    raw 835 transaction. The Claims Reconciliation dashboard surfaces payment status and
+    balance-due calculations.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Standard</th><td>ASC X12 005010X221A1</td></tr>
+            <tr><th class="ps-3">Transaction</th><td><code>835</code> — Health Care Claim Payment</td></tr>
+            <tr><th class="ps-3">Key segments</th><td><code>ISA · GS · ST · BPR · TRN · CLP · SVC · SE</code></td></tr>
+            <tr class="table-light"><th class="ps-3 text-danger">Key fields</th><td><code>CLP01</code> (claim ref), <code>CLP02</code> (status), <code>CLP03</code> (billed), <code>CLP04</code> (paid)</td></tr>
+            <tr><th class="ps-3">Stored on</th><td><code>ClaimRecord.x12_835</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'claim-reconciliation' %}">Claims Reconciliation →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Sample Segment — 835 CLP/SVC</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="font-size:.72rem;overflow-x:auto;background:#1e1e2e;color:#cdd6f4;border-radius:0 0 .375rem .375rem">ST*835*0001~
+BPR*I*387.50*C*ACH*CCP*01*999999999*DA*12345*1512345678**01*99999999*DA*98765*20240316~
+TRN*1*835-00042*1512345678~
+CLP*CLM-00042-001*1*450.00*387.50**MC*1234567890*11~
+SVC*HC:99284*450.00*387.50**1~
+CAS*CO*45*62.50~
+SE*8*0001~</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Flat Files                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="flat-files" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-info text-dark fs-6">Flat File</span>
+    <h4 class="mb-0">SFTP Flat-File Ingestion</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    Simulates an sFTP polling job that picks up CSV, pipe-delimited, or tab-delimited drops.
+    The parser auto-detects delimiter and schema, validates every row with field-level rules
+    (ICD-10 regex, CPT/HCPCS, required fields, date formats), and persists clean records to
+    PostgreSQL. Supports two schemas: <strong>PATIENT</strong> demographics (upsert to
+    <code>PatientRecord</code>) and <strong>CLINICAL</strong> encounters.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Specification</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:120px">Delimiters</th><td>Comma (CSV), Pipe <code>|</code>, Tab <code>\t</code></td></tr>
+            <tr><th class="ps-3">Encoding</th><td>UTF-8-BOM · UTF-8 · Latin-1</td></tr>
+            <tr><th class="ps-3">Max file size</th><td>20 MB</td></tr>
+            <tr><th class="ps-3">Max rows</th><td>50,000</td></tr>
+            <tr class="table-light"><th class="ps-3">Upload endpoint</th><td><code class="text-success">POST /api/sftp/upload/</code></td></tr>
+            <tr><th class="ps-3">Run list</th><td><code>GET /api/sftp/runs/</code></td></tr>
+            <tr><th class="ps-3">UI</th><td><a href="{% url 'sftp-ingest' %}">SFTP Ingest →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Schemas &amp; Required Fields</div>
+        <div class="card-body small p-3">
+          <p class="fw-semibold mb-1 text-primary">PATIENT</p>
+          <p class="text-muted mb-2">Detected by: <code>mrn</code>, <code>first_name</code>, <code>last_name</code>, <code>dob</code></p>
+          <p class="mb-0">Required: <code>mrn</code> · <code>last_name</code> · <code>first_name</code> · <code>dob</code></p>
+          <p class="text-muted mb-3">Optional: <code>gender</code> · <code>address1</code> · <code>city</code> · <code>state</code> · <code>zip_code</code></p>
+          <p class="fw-semibold mb-1 text-success">CLINICAL</p>
+          <p class="text-muted mb-2">Detected by: <code>visit_date</code>, <code>diagnosis_code</code>, <code>procedure_code</code></p>
+          <p class="mb-0">Required: <code>mrn</code> · <code>visit_date</code></p>
+          <p class="text-muted mb-0">Optional: <code>diagnosis_code</code> (ICD-10) · <code>procedure_code</code> (CPT/HCPCS) · <code>visit_type</code> · <code>provider_id</code> · <code>facility_code</code> · <code>notes</code></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Total runs</th><td><strong>{{ sftp_stats.count }}</strong></td></tr>
+            <tr><th class="ps-3">PATIENT runs</th><td>{{ sftp_stats.patient }}</td></tr>
+            <tr><th class="ps-3">CLINICAL runs</th><td>{{ sftp_stats.clinical }}</td></tr>
+            <tr class="table-light"><th class="ps-3">Last run</th><td>
+              {% if sftp_stats.last %}{{ sftp_stats.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+        <div class="card-footer small">
+          <strong>Validation rules:</strong> dob not in future · gender M/F/U/O ·
+          state 2-char · ICD-10 regex · CPT-4/5 or HCPCS regex
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- Trace / Audit                                                         -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="tracing" class="mb-5">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge bg-secondary fs-6">Observability</span>
+    <h4 class="mb-0">End-to-End Tracing &amp; Audit Log</h4>
+  </div>
+  <p class="text-muted small mb-3">
+    Every inbound message is assigned a <code>trace_id</code> (UUID) and passes through a
+    multi-step pipeline tracked in <code>TraceLog</code> / <code>TraceStep</code>. Each step
+    records status, latency, and error detail. The Data Quality Monitor surfaces aggregate
+    metrics, flags incomplete or delayed messages, and auto-refreshes every 30 seconds.
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Tracing Endpoints</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3" style="width:130px">Ingest</th><td><code class="text-success">POST /api/trace/ingest/</code></td></tr>
+            <tr><th class="ps-3">Log list</th><td><code>GET /api/trace/logs/</code></td></tr>
+            <tr><th class="ps-3">Log detail</th><td><code>GET /api/trace/logs/{trace_id}/</code></td></tr>
+            <tr class="table-light"><th class="ps-3">DQ metrics</th><td><code>GET /dq/metrics/</code> (JSON)</td></tr>
+            <tr><th class="ps-3">Trace UI</th><td><a href="{% url 'trace-logs-page' %}">Trace Logs →</a></td></tr>
+            <tr><th class="ps-3">DQ dashboard</th><td><a href="{% url 'dq-dashboard' %}">Data Quality Monitor →</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold d-flex justify-content-between">
+          Live Stats <span class="badge bg-success">DB</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><th class="ps-3">Trace logs</th><td><strong>{{ trace_stats.count }}</strong></td></tr>
+            <tr class="table-light"><th class="ps-3">Last entry</th><td>
+              {% if trace_stats.last %}{{ trace_stats.last|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header small fw-semibold">Quality Flags</div>
+        <div class="card-body small p-3">
+          <p class="mb-1"><span class="badge bg-warning text-dark me-1">INCOMPLETE</span> Empty <code>patient_id</code> or <code>VALIDATION</code> error category</p>
+          <p class="mb-1"><span class="badge bg-danger me-1">DELAYED</span> RECEIVED / VALIDATED status &gt; 300 s without progression</p>
+          <p class="mb-0"><span class="badge bg-info text-dark me-1">REFRESH</span> Dashboard auto-refreshes every 30 s via <code>/dq/metrics/</code> JSON API</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── Footer note ──────────────────────────────────────────────────────── -->
+<div class="alert alert-light border small text-muted mb-0">
+  <strong>Note:</strong> All message samples above use synthetic test data only.
+  This system is not intended for real PHI and is not a HIPAA-compliant production system.
+  Endpoint URLs are relative to the application root.
+  Live stat counts are read directly from PostgreSQL at page load time.
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+// Smooth-scroll for quick-nav pills
+document.querySelectorAll('.nav-pills a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({behavior: 'smooth', block: 'start'});
+      // Update active pill
+      document.querySelectorAll('.nav-pills .nav-link').forEach(l => l.classList.remove('active'));
+      a.classList.add('active');
+    }
+  });
+});
+
+// Highlight active pill on scroll
+const sections = document.querySelectorAll('section[id]');
+const pills    = document.querySelectorAll('.nav-pills .nav-link');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  pills.forEach(p => {
+    p.classList.toggle('active', p.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+{% endblock %}

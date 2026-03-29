@@ -163,4 +163,99 @@
     </div>
   </div>
 </div>
+
+<!-- ── Mirth Channel Architecture ──────────────────────────────────────── -->
+<div class="accordion mt-4" id="mirthArchAccordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#mirthArchBody">
+        Mirth Connect Channel Architecture &amp; JavaScript Transform Example
+      </button>
+    </h2>
+    <div id="mirthArchBody" class="accordion-collapse collapse">
+      <div class="accordion-body small">
+        <p class="text-muted mb-3">
+          In production, Mirth Connect channels handle HL7 ingestion, routing, and
+          transformation. Each channel has a <strong>Source Connector</strong> (TCP/MLLP
+          listener), a <strong>Transformer</strong> (JavaScript), and one or more
+          <strong>Destination Connectors</strong> (REST, DB write, file). Below is the
+          JS transformer that mirrors what this Django API performs server-side.
+        </p>
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card border-0 bg-light h-100">
+              <div class="card-body small">
+                <p class="fw-semibold mb-2">Channel: <code>HL7_Inbound_ADT</code></p>
+                <div class="d-flex flex-column gap-2">
+                  <div class="p-2 bg-primary text-white rounded text-center">
+                    Source: TCP/MLLP Listener<br><span class="small opacity-75">Port 6661 · HL7 v2.x</span>
+                  </div>
+                  <div class="text-center text-muted">↓ raw HL7 string</div>
+                  <div class="p-2 bg-warning text-dark rounded text-center">
+                    Transformer (JavaScript)<br><span class="small">Validate · Map · Route</span>
+                  </div>
+                  <div class="text-center text-muted">↓ mapped data</div>
+                  <div class="row g-1">
+                    <div class="col-6"><div class="p-2 bg-success text-white rounded text-center" style="font-size:.75rem">Dest 1:<br>REST POST<br>/api/mirth/hl7/</div></div>
+                    <div class="col-6"><div class="p-2 bg-info text-dark rounded text-center" style="font-size:.75rem">Dest 2:<br>DB Writer<br>audit_log</div></div>
+                  </div>
+                  <div class="text-center text-muted">↓ ACK to sender</div>
+                  <div class="p-2 bg-secondary text-white rounded text-center">Response: MSH ACK (AA/AE)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-8">
+            <p class="fw-semibold mb-1">Mirth JS Transformer — <code>HL7_Inbound_ADT / Source</code></p>
+            <pre class="mb-0 p-3" style="background:#1e1e2e;color:#cdd6f4;font-size:.7rem;border-radius:.375rem;overflow-x:auto">// ── Mirth Connect JavaScript Transformer ──────────────────────────
+// Channel: HL7_Inbound_ADT  |  Scope: Source  |  Mirth 4.x
+
+// 1. Parse key fields (Mirth auto-parses HL7 into msg object)
+var msgType    = msg['MSH']['MSH.9']['MSH.9.1'].toString();  // e.g. "ADT"
+var trigEvent  = msg['MSH']['MSH.9']['MSH.9.2'].toString();  // e.g. "A01"
+var sendingApp = msg['MSH']['MSH.3'].toString();
+var patientId  = msg['PID']['PID.3']['PID.3.1'].toString();  // MRN
+var lastName   = msg['PID']['PID.5']['PID.5.1'].toString();
+var firstName  = msg['PID']['PID.5']['PID.5.2'].toString();
+var dob        = msg['PID']['PID.7'].toString();             // YYYYMMDD
+var gender     = msg['PID']['PID.8'].toString();             // M/F/U
+
+// 2. Route A01/A03 to billing pipeline
+if (trigEvent == 'A01' || trigEvent == 'A03') {
+  channelMap.put('routeToBilling', 'true');
+}
+
+// 3. Build JSON payload for REST destination connector
+var payload = {
+  message_type: msgType + '^' + trigEvent,
+  patient_id:   patientId,
+  raw_hl7:      connectorMessage.getRawData(),
+  sending_app:  sendingApp
+};
+channelMap.put('jsonPayload', JSON.stringify(payload));
+
+// 4. Validate required fields; flag for destination filter
+if (!patientId) {
+  channelMap.put('validationError', 'Missing PID-3 (MRN)');
+  channelMap.put('processingStatus', 'FAILED');
+} else {
+  channelMap.put('validationError', '');
+  channelMap.put('processingStatus', 'VALIDATED');
+}
+
+// 5. Set ACK code (AA = accept, AE = error)
+channelMap.put('ackCode', channelMap.get('validationError') ? 'AE' : 'AA');</pre>
+            <p class="text-muted mt-2 mb-0" style="font-size:.75rem">
+              In this demo the same logic runs server-side in
+              <code>example/hl7_utils.py</code> + <code>MirthHL7View</code>.
+              The <code>channelMap</code> values above flow into the REST Destination
+              Connector body template as <code>${jsonPayload}</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

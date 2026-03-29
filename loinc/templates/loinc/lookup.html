@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}LOINC Code Lookup | Healthcare Integration{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-2">
+  <div>
+    <h2 class="mb-1">LOINC Code Reference</h2>
+    <p class="text-muted mb-0 small">
+      Logical Observation Identifiers Names and Codes (LOINC) — the universal standard for
+      identifying medical laboratory observations, vital signs, and clinical document types.
+      Used in HL7 OBX-3 observation identifiers and as FHIR <code>Observation.code</code>.
+      This lookup covers ~100 codes across 12 clinical categories.
+    </p>
+  </div>
+  <span class="badge bg-info text-dark mt-1">LOINC 2.77</span>
+</div>
+
+<div class="alert alert-secondary small py-2 mb-4">
+  <strong>API:</strong> <code>GET /api/loinc/search/?q=hemoglobin</code> &nbsp;·&nbsp;
+  <code>GET /api/loinc/search/?category=CBC</code> &nbsp;·&nbsp;
+  Returns JSON: <code>&#123;"count": N, "results": [&#123;"code","name","long_name","unit",...&#125;]&#125;</code>
+</div>
+
+<!-- ── Search bar ────────────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold">Search codes, names, or descriptions</label>
+        <input id="searchInput" class="form-control" placeholder="e.g. hemoglobin, 718-7, troponin…" autofocus>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Filter by category</label>
+        <select id="categoryFilter" class="form-select">
+          <option value="">All categories</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button id="searchBtn" class="btn btn-primary w-100">Search</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Results ───────────────────────────────────────────────────────────── -->
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Results</strong>
+    <span id="resultCount" class="badge bg-secondary">loading…</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:90px">LOINC Code</th>
+            <th>Short Name</th>
+            <th>Long Common Name</th>
+            <th style="width:100px">Category</th>
+            <th style="width:80px">Specimen</th>
+            <th style="width:70px">Unit</th>
+            <th style="width:50px">Scale</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr><td colspan="7" class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category counts ──────────────────────────────────────────────────── -->
+<div class="mt-4">
+  <h6 class="text-muted">Browse by Category</h6>
+  <div id="categoryPills" class="d-flex flex-wrap gap-2">
+    {% for cat in categories %}
+    <button class="btn btn-sm btn-outline-secondary cat-pill" data-cat="{{ cat }}">{{ cat }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_URL = "{% url 'loinc-search' %}";
+
+const SCALE_COLORS = {Qn:"bg-primary", Ord:"bg-warning text-dark", Nom:"bg-info text-dark", Nar:"bg-secondary"};
+
+async function search(q="", category="") {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (category) params.set("category", category);
+
+  const resp = await fetch(API_URL + "?" + params.toString());
+  const data = await resp.json();
+
+  document.getElementById("resultCount").textContent = data.count + " results";
+  const tbody = document.getElementById("resultsBody");
+
+  if (!data.results.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No matches found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.results.map(r => `
+    <tr>
+      <td><code class="text-primary fw-semibold">${r.code}</code></td>
+      <td>${r.name}</td>
+      <td class="text-muted small">${r.long_name}</td>
+      <td><span class="badge bg-light text-dark border">${r.category}</span></td>
+      <td class="small">${r.specimen || "—"}</td>
+      <td class="small font-monospace">${r.unit || "—"}</td>
+      <td><span class="badge ${SCALE_COLORS[r.scale] || 'bg-secondary'}">${r.scale}</span></td>
+    </tr>`).join("");
+}
+
+// Initial load — show all
+search();
+
+// Live search on type
+let debounce;
+document.getElementById("searchInput").addEventListener("input", () => {
+  clearTimeout(debounce);
+  debounce = setTimeout(() => {
+    search(
+      document.getElementById("searchInput").value,
+      document.getElementById("categoryFilter").value
+    );
+  }, 250);
+});
+
+document.getElementById("searchBtn").addEventListener("click", () => {
+  search(
+    document.getElementById("searchInput").value,
+    document.getElementById("categoryFilter").value
+  );
+});
+
+document.getElementById("categoryFilter").addEventListener("change", () => {
+  search(
+    document.getElementById("searchInput").value,
+    document.getElementById("categoryFilter").value
+  );
+});
+
+// Category pills
+document.querySelectorAll(".cat-pill").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.getElementById("categoryFilter").value = btn.dataset.cat;
+    document.getElementById("searchInput").value = "";
+    search("", btn.dataset.cat);
+    // Scroll to table
+    document.querySelector(".card.shadow-sm").scrollIntoView({behavior:"smooth"});
+  });
+});
+</script>
+{% endblock %}

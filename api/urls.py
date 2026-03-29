@@ -26,8 +26,14 @@ urlpatterns = [
     path("api/adt/",  include("adt.api_urls")),         # ADT REST API
     path("adt/",      include("adt.ui_urls")),          # ADT HTML UI
     path("dq/",       include("dqmonitor.urls")),       # DQ dashboard (HTML) + metrics API
-    path("api/sftp/", include("sftpingest.api_urls")), # SFTP ingest REST API
-    path("sftp/",     include("sftpingest.ui_urls")),  # SFTP ingest HTML UI
+    path("api/sftp/",        include("sftpingest.api_urls")),  # SFTP ingest REST API
+    path("sftp/",            include("sftpingest.ui_urls")),   # SFTP ingest HTML UI
+    path("api/ccda/",        include("ccda.api_urls")),        # C-CDA REST API
+    path("ccda/",            include("ccda.ui_urls")),         # C-CDA HTML UI
+    path("api/scheduling/",  include("scheduling.api_urls")),  # SIU scheduling REST API
+    path("scheduling/",      include("scheduling.ui_urls")),   # SIU scheduling HTML UI
+    path("api/loinc/",       include("loinc.api_urls")),       # LOINC search API
+    path("loinc/",           include("loinc.ui_urls")),        # LOINC reference page
 
     # OpenAPI schema + docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -67,23 +67,24 @@
           </ul>
         </li>
 
-        <!-- ADT / DFT dropdown -->
+        <!-- ADT / DFT / SIU dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'adt-list,dft-list' %}active{% endif %}"
+               {% if request.resolver_match.url_name in 'adt-list,dft-list,siu-list' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            ADT / DFT
+            ADT / DFT / SIU
           </a>
           <ul class="dropdown-menu dropdown-menu-dark">
             <li><a class="dropdown-item" href="{% url 'adt-list' %}">ADT Simulation</a></li>
             <li><a class="dropdown-item" href="{% url 'dft-list' %}">DFT Billing (P03)</a></li>
+            <li><a class="dropdown-item" href="{% url 'siu-list' %}">SIU Scheduling</a></li>
           </ul>
         </li>
 
         <!-- FHIR & Standards dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'fhir-explorer,smart-on-fhir,prior-auth' %}active{% endif %}"
+               {% if request.resolver_match.url_name in 'fhir-explorer,smart-on-fhir,prior-auth,ccda-list,loinc-lookup' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             FHIR &amp; Standards
           </a>
@@ -91,6 +92,9 @@
             <li><a class="dropdown-item" href="{% url 'fhir-explorer' %}">FHIR R4 API</a></li>
             <li><a class="dropdown-item" href="{% url 'smart-on-fhir' %}">SMART on FHIR</a></li>
             <li><a class="dropdown-item" href="{% url 'prior-auth' %}">Da Vinci Prior Auth</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'ccda-list' %}">C-CDA Generator</a></li>
+            <li><a class="dropdown-item" href="{% url 'loinc-lookup' %}">LOINC Reference</a></li>
           </ul>
         </li>
 

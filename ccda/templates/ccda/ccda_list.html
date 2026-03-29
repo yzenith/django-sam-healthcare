@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}C-CDA Generator | Healthcare Integration{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-2">
+  <div>
+    <h2 class="mb-1">C-CDA R2.1 Document Generator</h2>
+    <p class="text-muted mb-0 small">
+      Generates a valid <strong>Continuity of Care Document (CCD)</strong> conforming to
+      C-CDA R2.1 (HL7 templateId <code>2.16.840.1.113883.10.20.22.1.2.1</code>).
+      Patient demographics are pulled from the database; encounter/diagnosis data is
+      enriched from any linked SFTP clinical records.
+    </p>
+  </div>
+  <span class="badge bg-success mt-1">HL7 C-CDA R2.1</span>
+</div>
+
+<div class="alert alert-secondary small py-2 mb-4">
+  <strong>Pipeline:</strong>
+  PatientRecord (DB) + ClinicalRecord (DB) → C-CDA XML generator →
+  Sections: Allergies · Problem List · Encounters
+  &nbsp;·&nbsp; <strong>Endpoint:</strong> <code>POST /api/ccda/generate/</code>
+</div>
+
+<div class="row g-4 mb-5">
+
+  <!-- ── Generate form ─────────────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <strong>Generate Document</strong>
+        <span class="badge bg-light text-primary">POST /api/ccda/generate/</span>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Patient MRN</label>
+          <select id="mrnSelect" class="form-select">
+            <option value="">— select patient —</option>
+            {% for p in patients %}
+            <option value="{{ p.mrn }}">{{ p.mrn }} — {{ p.last_name }}, {{ p.first_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Document Type</label>
+          <select id="docTypeSelect" class="form-select">
+            <option value="CCD">Continuity of Care Document (CCD)</option>
+            <option value="DISCHARGE_SUMMARY">Discharge Summary</option>
+            <option value="PROGRESS_NOTE">Progress Note</option>
+          </select>
+        </div>
+        <button id="generateBtn" class="btn btn-primary w-100" disabled>
+          <span id="genSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+          Generate C-CDA
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Spec card ─────────────────────────────────────────────────────── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header"><strong>C-CDA R2.1 Structure</strong></div>
+      <div class="card-body small">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <p class="fw-semibold mb-1">Document Header</p>
+            <ul class="mb-0 ps-3 text-muted">
+              <li>realmCode · typeId · templateId (CDA R2 + C-CDA R2.1)</li>
+              <li>id (UUID) · code (LOINC 34133-9) · title</li>
+              <li>effectiveTime · confidentialityCode</li>
+              <li>recordTarget → patientRole → patient</li>
+              <li>author → assignedAuthoringDevice</li>
+              <li>custodian → representedCustodianOrganization</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <p class="fw-semibold mb-1">Structured Body Sections</p>
+            <ul class="mb-0 ps-3 text-muted">
+              <li><span class="badge bg-success me-1">Allergies</span>LOINC 48765-2 (no known allergies entry)</li>
+              <li><span class="badge bg-warning text-dark me-1">Problems</span>LOINC 11450-4 — ICD-10 observations from encounters</li>
+              <li><span class="badge bg-primary me-1">Encounters</span>LOINC 46240-8 — visit dates, types, procedures</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── XML preview ──────────────────────────────────────────────────────── -->
+<div id="previewCard" class="card shadow-sm mb-5 d-none">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Generated C-CDA XML</strong>
+    <div class="d-flex gap-2">
+      <button id="copyBtn" class="btn btn-sm btn-outline-secondary">Copy</button>
+      <a id="downloadLink" href="#" class="btn btn-sm btn-success">Download .xml</a>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <pre id="xmlPreview" class="mb-0 p-3 small"
+         style="max-height:450px;overflow-y:auto;background:#1e1e2e;color:#cdd6f4;font-size:.72rem;border-radius:0 0 .375rem .375rem;white-space:pre-wrap"></pre>
+  </div>
+</div>
+
+<!-- ── Recent documents ─────────────────────────────────────────────────── -->
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Recent Documents</strong>
+    <span class="badge bg-secondary">{{ documents|length }} shown</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>#</th><th>MRN</th><th>Type</th><th>Document ID</th><th>Generated</th><th></th></tr>
+      </thead>
+      <tbody id="docsTableBody">
+        {% for doc in documents %}
+        <tr>
+          <td>{{ doc.id }}</td>
+          <td><code>{{ doc.patient.mrn }}</code></td>
+          <td><span class="badge bg-primary">{{ doc.document_type }}</span></td>
+          <td class="text-muted small font-monospace">{{ doc.document_id }}</td>
+          <td class="text-muted small">{{ doc.created_at|date:"Y-m-d H:i" }}</td>
+          <td><a href="{% url 'ccda-download' doc.pk %}" class="btn btn-sm btn-outline-success py-0">Download</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No documents generated yet. Select a patient above.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const GENERATE_URL = "{% url 'ccda-generate' %}";
+const CSRF = "{{ csrf_token }}";
+
+const mrnSelect   = document.getElementById("mrnSelect");
+const docTypeSelect = document.getElementById("docTypeSelect");
+const generateBtn = document.getElementById("generateBtn");
+const previewCard = document.getElementById("previewCard");
+const xmlPreview  = document.getElementById("xmlPreview");
+const downloadLink = document.getElementById("downloadLink");
+
+mrnSelect.addEventListener("change", () => {
+  generateBtn.disabled = !mrnSelect.value;
+});
+
+generateBtn.addEventListener("click", async () => {
+  generateBtn.disabled = true;
+  document.getElementById("genSpinner").classList.remove("d-none");
+  previewCard.classList.add("d-none");
+
+  try {
+    const resp = await fetch(GENERATE_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF},
+      body: JSON.stringify({mrn: mrnSelect.value, document_type: docTypeSelect.value}),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      alert(data.detail || JSON.stringify(data));
+      return;
+    }
+
+    previewCard.classList.remove("d-none");
+    xmlPreview.textContent = data.xml_content;
+    downloadLink.href = `/ccda/${data.id}/download/`;
+
+    // Prepend to table
+    const tbody = document.getElementById("docsTableBody");
+    const empty = tbody.querySelector("td[colspan]");
+    if (empty) empty.closest("tr").remove();
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${data.id}</td>
+      <td><code>${data.patient_mrn}</code></td>
+      <td><span class="badge bg-primary">${data.document_type}</span></td>
+      <td class="text-muted small font-monospace">${data.document_id}</td>
+      <td class="text-muted small">just now</td>
+      <td><a href="/ccda/${data.id}/download/" class="btn btn-sm btn-outline-success py-0">Download</a></td>`;
+    tbody.prepend(tr);
+  } finally {
+    generateBtn.disabled = false;
+    document.getElementById("genSpinner").classList.add("d-none");
+  }
+});
+
+document.getElementById("copyBtn").addEventListener("click", () => {
+  navigator.clipboard.writeText(xmlPreview.textContent);
+  document.getElementById("copyBtn").textContent = "Copied!";
+  setTimeout(() => document.getElementById("copyBtn").textContent = "Copy", 2000);
+});
+</script>
+{% endblock %}

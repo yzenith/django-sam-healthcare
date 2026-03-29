@@ -65,6 +65,9 @@ INSTALLED_APPS = [
     'adt',
     'dqmonitor',
     'sftpingest',
+    'ccda',
+    'scheduling',
+    'loinc',
 ]
 
 REST_FRAMEWORK = {
@@ -113,7 +116,9 @@ LOGGING = {
         'logtrace': {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
         'adt':      {'handlers': ['console'], 'level': 'INFO',   'propagate': False},
         'dqmonitor':  {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
-        'sftpingest': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'sftpingest':  {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'ccda':        {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'scheduling':  {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
 

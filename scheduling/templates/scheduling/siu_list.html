@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}SIU Scheduling | Healthcare Integration{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-2">
+  <div>
+    <h2 class="mb-1">HL7 SIU — Scheduling Simulation</h2>
+    <p class="text-muted mb-0 small">
+      Generates HL7 v2.3 <strong>SIU (Scheduling Information Unsolicited)</strong> messages
+      for appointment booking, modification, and cancellation events.
+      Segments: <code>MSH · SCH · PID · PV1 · RGS · AIS · AIL · AIP</code>
+    </p>
+  </div>
+  <span class="badge bg-primary mt-1">HL7 v2.3 SIU</span>
+</div>
+
+<div class="alert alert-secondary small py-2 mb-4">
+  <strong>Trigger events:</strong>
+  <span class="badge bg-success me-1">S12</span> New Appointment &nbsp;
+  <span class="badge bg-warning text-dark me-1">S14</span> Modified &nbsp;
+  <span class="badge bg-danger me-1">S15</span> Cancelled &nbsp;·&nbsp;
+  <strong>Endpoint:</strong> <code>POST /api/scheduling/trigger/</code>
+</div>
+
+<!-- ── Stats strip ───────────────────────────────────────────────────────── -->
+<div class="row g-2 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 bg-light">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold">{{ stats.total }}</div>
+        <div class="small text-muted">Total Messages</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 bg-success bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-success">{{ stats.s12 }}</div>
+        <div class="small text-muted">S12 New</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 bg-warning bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-warning">{{ stats.s14 }}</div>
+        <div class="small text-muted">S14 Modified</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 bg-danger bg-opacity-10">
+      <div class="card-body py-2">
+        <div class="fs-4 fw-bold text-danger">{{ stats.s15 }}</div>
+        <div class="small text-muted">S15 Cancelled</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-5">
+  <!-- ── Trigger form ─────────────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <strong>Send SIU Message</strong>
+      </div>
+      <div class="card-body">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Patient ID</label>
+          <input id="patientId" class="form-control form-control-sm" placeholder="e.g. P-00042" value="P-00042">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Event Type</label>
+          <select id="eventType" class="form-select form-select-sm">
+            <option value="S12">S12 – New Appointment</option>
+            <option value="S14">S14 – Appointment Modified</option>
+            <option value="S15">S15 – Appointment Cancelled</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Appointment Date &amp; Time</label>
+          <input id="apptDt" type="datetime-local" class="form-control form-control-sm" value="{{ default_dt }}">
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Duration (min)</label>
+            <input id="duration" type="number" class="form-control form-control-sm" value="30" min="5" max="480">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Appointment Type</label>
+            <select id="apptType" class="form-select form-select-sm">
+              {% for val, label in appt_types %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Provider</label>
+          <select id="providerId" class="form-select form-select-sm">
+            <option value="">Auto-assign</option>
+            {% for pid, pname in providers %}
+            <option value="{{ pid }}" data-name="{{ pname }}">{{ pname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Location</label>
+          <select id="location" class="form-select form-select-sm">
+            <option value="">Auto-assign</option>
+            {% for loc in locations %}
+            <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Reason</label>
+          <input id="reason" class="form-control form-control-sm" placeholder="e.g. Annual physical">
+        </div>
+        <button id="triggerBtn" class="btn btn-primary w-100">
+          <span id="trigSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+          Send SIU^<span id="eventLabel">S12</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Raw HL7 preview ───────────────────────────────────────────────── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Last Generated Message</strong>
+        <span id="lastEventBadge" class="badge bg-secondary">—</span>
+      </div>
+      <div class="card-body p-0">
+        <pre id="hl7Preview" class="mb-0 p-3 small"
+             style="min-height:200px;background:#1e1e2e;color:#cdd6f4;font-size:.72rem;
+                    border-radius:0 0 .375rem .375rem;white-space:pre-wrap;overflow-x:auto">
+Trigger an SIU message to see the raw HL7 here.</pre>
+      </div>
+      <div class="card-footer small text-muted">
+        Segments shown: MSH · SCH · PID · PV1 · RGS · AIS · AIL · AIP
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Messages table ───────────────────────────────────────────────────── -->
+<div class="card shadow-sm">
+  <div class="card-header"><strong>Recent SIU Messages</strong></div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Event</th><th>Patient</th><th>Appointment ID</th>
+            <th>Date / Time</th><th>Type</th><th>Provider</th><th>Location</th><th>Sent</th>
+          </tr>
+        </thead>
+        <tbody id="messagesBody">
+          {% for msg in messages %}
+          <tr>
+            <td>{{ msg.id }}</td>
+            <td>
+              {% if msg.event_type == "S12" %}<span class="badge bg-success">S12</span>
+              {% elif msg.event_type == "S14" %}<span class="badge bg-warning text-dark">S14</span>
+              {% else %}<span class="badge bg-danger">S15</span>{% endif %}
+            </td>
+            <td><code>{{ msg.patient_id }}</code></td>
+            <td class="small font-monospace">{{ msg.appointment_id }}</td>
+            <td class="small">{{ msg.appointment_dt|date:"Y-m-d H:i" }}</td>
+            <td><span class="badge bg-secondary">{{ msg.appointment_type }}</span></td>
+            <td class="small">{{ msg.provider_name }}</td>
+            <td class="small">{{ msg.location }}</td>
+            <td class="text-muted small">{{ msg.timestamp|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No messages yet. Trigger an SIU event above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TRIGGER_URL = "{% url 'siu-trigger' %}";
+const CSRF = "{{ csrf_token }}";
+
+const eventType = document.getElementById("eventType");
+const eventLabel = document.getElementById("eventLabel");
+eventType.addEventListener("change", () => eventLabel.textContent = eventType.value);
+
+document.getElementById("triggerBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("triggerBtn");
+  const spinner = document.getElementById("trigSpinner");
+  btn.disabled = true;
+  spinner.classList.remove("d-none");
+
+  const provSel = document.getElementById("providerId");
+  const provName = provSel.options[provSel.selectedIndex].dataset.name || "";
+
+  const payload = {
+    patient_id:       document.getElementById("patientId").value.trim(),
+    event_type:       eventType.value,
+    appointment_dt:   document.getElementById("apptDt").value,
+    duration_minutes: parseInt(document.getElementById("duration").value),
+    appointment_type: document.getElementById("apptType").value,
+    provider_id:      provSel.value,
+    provider_name:    provName,
+    location:         document.getElementById("location").value,
+    reason:           document.getElementById("reason").value,
+  };
+
+  try {
+    const resp = await fetch(TRIGGER_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert(JSON.stringify(data)); return; }
+
+    // Show raw HL7
+    const hl7 = (data.raw_hl7 || "").replace(/\r/g, "\n");
+    document.getElementById("hl7Preview").textContent = hl7;
+    const badgeColors = {S12:"bg-success", S14:"bg-warning text-dark", S15:"bg-danger"};
+    document.getElementById("lastEventBadge").className = "badge " + (badgeColors[data.event_type] || "bg-secondary");
+    document.getElementById("lastEventBadge").textContent = "SIU^" + data.event_type;
+
+    // Prepend row
+    const tbody = document.getElementById("messagesBody");
+    const emptyRow = tbody.querySelector("td[colspan]");
+    if (emptyRow) emptyRow.closest("tr").remove();
+    const badgeHtml = {
+      S12: '<span class="badge bg-success">S12</span>',
+      S14: '<span class="badge bg-warning text-dark">S14</span>',
+      S15: '<span class="badge bg-danger">S15</span>',
+    }[data.event_type] || data.event_type;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${data.id}</td>
+      <td>${badgeHtml}</td>
+      <td><code>${data.patient_id}</code></td>
+      <td class="small font-monospace">${data.appointment_id}</td>
+      <td class="small">${data.appointment_dt?.slice(0,16)?.replace("T"," ")}</td>
+      <td><span class="badge bg-secondary">${data.appointment_type}</span></td>
+      <td class="small">${data.provider_name}</td>
+      <td class="small">${data.location}</td>
+      <td class="text-muted small">just now</td>`;
+    tbody.prepend(tr);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.add("d-none");
+  }
+});
+</script>
+{% endblock %}

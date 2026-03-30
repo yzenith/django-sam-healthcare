@@ -1,0 +1,820 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Interview Study Guide | Healthcare Integration{% endblock %}
+
+{% block content %}
+
+<!-- Print button — hidden when printing -->
+<div class="d-flex justify-content-between align-items-center mb-3 no-print">
+  <div>
+    <h2 class="mb-0">Interview Study Guide</h2>
+    <p class="text-muted small mb-0">Data flows, key concepts, and Q&amp;A for every integration in this demo.
+      Use <strong>Ctrl+P → Save as PDF</strong> to export.</p>
+  </div>
+  <button onclick="window.print()" class="btn btn-success no-print">
+    ⬇ Export as PDF
+  </button>
+</div>
+
+<!-- ── Quick-nav (screen only) ─────────────────────────────────────────── -->
+<nav class="mb-4 no-print">
+  <ul class="nav nav-pills flex-wrap gap-1 small">
+    <li class="nav-item"><a class="nav-link py-1 px-2 active" href="#architecture">Architecture</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-adt">ADT</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-siu">SIU</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-oru-orm">ORU/ORM</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#hl7-dft">DFT</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#ccda">C-CDA</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#fhir">FHIR R4</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#x12">X12</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#flat-files">Flat Files</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#loinc">LOINC</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#mirth">Mirth</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#tracing">Tracing</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#interview-qa">Interview Q&amp;A</a></li>
+    <li class="nav-item"><a class="nav-link py-1 px-2" href="#code-map">Code Map</a></li>
+  </ul>
+</nav>
+
+<style>
+/* ── Print styles ── */
+@media print {
+  .no-print { display: none !important; }
+  nav, footer, .navbar { display: none !important; }
+  main.container { max-width: 100% !important; padding: 0 !important; }
+  body { font-size: 11pt; color: #000; }
+  h2 { font-size: 18pt; margin-top: 24pt; }
+  h3 { font-size: 14pt; margin-top: 16pt; }
+  h4 { font-size: 12pt; }
+  .card { border: 1px solid #ccc !important; box-shadow: none !important; break-inside: avoid; }
+  .card-header { background: #f0f0f0 !important; color: #000 !important; }
+  pre { background: #f8f8f8 !important; color: #000 !important; font-size: 8pt; border: 1px solid #ddd; }
+  section { page-break-before: auto; }
+  .page-break { page-break-before: always; }
+  .badge { border: 1px solid #666; background: #eee !important; color: #000 !important; }
+  a { color: #000; text-decoration: none; }
+  .alert { border: 1px solid #ccc !important; background: #f9f9f9 !important; color: #000 !important; }
+}
+</style>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1 — SYSTEM ARCHITECTURE                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="architecture" class="mb-5">
+  <h2 class="border-bottom pb-2">1 — System Architecture &amp; Full Data Flow</h2>
+  <p class="text-muted small">How every message type flows through this pipeline, end-to-end.</p>
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">Master Data Flow</div>
+    <div class="card-body p-0">
+      <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.8rem">
+SOURCE SYSTEMS                  INTEGRATION ENGINE              DOWNSTREAM CONSUMERS
+─────────────────               ──────────────────────          ────────────────────
+
+EHR / HIS                       Mirth Connect Channel           Django API
+  │                               TCP/MLLP (port 6661)            POST /api/mirth/hl7/
+  │  HL7 v2 message ────────────► Source Connector       ───────► MirthHL7View
+  │  (ADT/ORU/ORM/DFT)            JS Transformer                    │
+  │                               Destination: REST                  ├─ Validate segments
+  │                                                                  ├─ Map PID/PV1/OBX
+  │                                                                  ├─ Store HL7MessageLog
+  │                                                                  ├─ Generate FHIR R4
+  │                                                                  ├─ Generate X12 837P
+  │                                                                  └─ Fire DFT (if A01/A03)
+  │
+  │  ADT trigger ────────────────────────────────────────────────► POST /api/adt/trigger/
+  │  (A01/A02/A03/A08)                                               ADTTriggerView
+  │                                                                    ├─ Create ADTMessage
+  │                                                                    ├─ Auto-fire DFT^P03
+  │                                                                    │    └─ DFT^P03 XML
+  │                                                                    │    └─ X12 837P claim
+  │                                                                    └─ Return raw HL7
+  │
+  │  SIU scheduling ─────────────────────────────────────────────► POST /api/scheduling/trigger/
+  │  (S12/S14/S15)                                                    SIUTriggerView
+  │                                                                    └─ Create SIUMessage
+  │
+  │  SFTP flat file ─────────────────────────────────────────────► POST /api/sftp/upload/
+  │  (CSV/pipe/tab)                                                    SFTPUploadView
+  │                                                                    ├─ Auto-detect delimiter
+  │                                                                    ├─ Auto-detect schema
+  │                                                                    ├─ Validate each row
+  │                                                                    ├─ Upsert PatientRecord (PATIENT)
+  │                                                                    └─ Insert ClinicalRecord (CLINICAL)
+  │
+  │  C-CDA request ──────────────────────────────────────────────► POST /api/ccda/generate/
+                                                                      CCDAGenerateView
+                                                                      ├─ Lookup PatientRecord
+                                                                      ├─ Enrich with ClinicalRecords
+                                                                      └─ Emit C-CDA R2.1 XML
+
+DATABASE (PostgreSQL / Neon)
+  ├─ HL7MessageLog       — every inbound message + FHIR + X12 output
+  ├─ PatientRecord        — canonical patient demographics (upsert on MRN)
+  ├─ ADTMessage           — ADT events with raw HL7
+  ├─ DFTMessage           — DFT P03 with X12 837P embedded
+  ├─ DFTChargeItem        — individual FT1 charge lines
+  ├─ SIUMessage           — scheduling events with raw HL7
+  ├─ SFTPIngestRun        — audit log for each flat-file upload
+  ├─ ClinicalRecord       — encounter rows from SFTP clinical files
+  ├─ CCDADocument         — generated C-CDA XML documents
+  ├─ ClaimRecord          — X12 837P/835 lifecycle tracking
+  ├─ TraceLog / TraceStep — end-to-end pipeline audit trail
+  └─ WebhookDelivery      — outbound FHIR webhook attempts</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header fw-semibold">Revenue Cycle Chain (ADT → DFT → 837P → 835)</div>
+    <div class="card-body p-0">
+      <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.8rem">
+Patient Admitted (A01) or Discharged (A03)
+  │
+  ▼
+ADTMessage created  ──────────────────────────────────────────────────────────────────
+  │                                                                                    │
+  │ auto-trigger (A01 or A03 only)                                            DFT^P03 stored
+  ▼                                                                           in ADTMessage.dft_messages
+DFT^P03 generated (dft_service.py)
+  │
+  ├─ FT1 segment per charge item (DFTChargeItem)
+  │    A01 charges: Room/Board, IV Setup, Medical Supplies
+  │    A03 charges: ED Visit (99284), CBC (85025), X-Ray (71046), IV Infusion, Hospital Care
+  │
+  ├─ X12 837P built (_build_x12_837p)
+  │    Each DFTChargeItem → LX + SV1 service line
+  │    CLM02 = sum of all FT1 amounts
+  │
+  └─ DFTMessage.x12_837 stored in DB
+
+Payer receives 837P → responds with X12 835 ERA
+  │
+  ▼
+ClaimRecord updated: billed_amount / paid_amount / adjustment / balance_due
+  └─ ClaimRecord.x12_835 stores raw 835
+
+Claims Reconciliation dashboard shows full lifecycle.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2 — HL7 ADT                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-adt" class="mb-5">
+  <h2 class="border-bottom pb-2">2 — HL7 v2.3 ADT</h2>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Key Facts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th>Message type</th><td><code>ADT^A01 / A02 / A03 / A08</code></td></tr>
+            <tr><th>Trigger events</th><td>A01 Admit · A02 Transfer · A03 Discharge · A08 Update</td></tr>
+            <tr><th>Segments</th><td><code>MSH · EVN · PID · PV1</code></td></tr>
+            <tr><th>Separator</th><td>CR (<code>\r</code>) between segments, not newline</td></tr>
+            <tr><th>MRN location</th><td>PID-3.1</td></tr>
+            <tr><th>Encoding</th><td>ER7 (pipe-delimited)</td></tr>
+            <tr><th>Downstream</th><td>A01/A03 auto-fires DFT^P03</td></tr>
+            <tr><th>Demo endpoint</th><td><code>POST /api/adt/trigger/</code></td></tr>
+            <tr><th>Code file</th><td><code>adt/hl7_generator.py</code></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Data Flow — ADT A01 (Admit)</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+1. POST /api/adt/trigger/
+   Body: { "patient_id": "P-001", "event_type": "A01" }
+
+2. ADTTriggerView (adt/views.py)
+   └─ validate via ADTTriggerSerializer
+   └─ call generate_adt(patient_id, "A01")  → raw HL7 string
+       MSH|^~\&|DEMO|FAC1|...|ADT^A01|...
+       EVN|A01|20240315120000
+       PID|1||P-001^^^...|Smith^John||19800315|M
+       PV1|1|I|3W^301^A^FAC1
+
+3. ADTMessage.objects.create(...)  →  stored in DB
+
+4. create_dft_from_adt(msg) called automatically
+   └─ generates DFT^P03 + X12 837P
+   └─ DFTMessage + DFTChargeItem stored
+
+5. Response: ADTMessageSerializer JSON (includes raw_hl7)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3 — SIU                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-siu" class="mb-5">
+  <h2 class="border-bottom pb-2">3 — HL7 v2.3 SIU (Scheduling)</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Key Facts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th>Message type</th><td><code>SIU^S12 / S14 / S15</code></td></tr>
+            <tr><th>Trigger events</th><td>S12 New · S14 Modified · S15 Cancelled</td></tr>
+            <tr><th>Segments</th><td><code>MSH · SCH · PID · PV1 · RGS · AIS · AIL · AIP</code></td></tr>
+            <tr><th>SCH-6</th><td>Appointment type (ROUTINE/URGENT/WALK_IN etc.)</td></tr>
+            <tr><th>SCH-11</th><td>Appointment timing (start^end timestamps)</td></tr>
+            <tr><th>AIS</th><td>Service information (what the appointment is for)</td></tr>
+            <tr><th>AIL</th><td>Location resource</td></tr>
+            <tr><th>AIP</th><td>Personnel (provider) resource</td></tr>
+            <tr><th>Demo endpoint</th><td><code>POST /api/scheduling/trigger/</code></td></tr>
+            <tr><th>Code file</th><td><code>scheduling/hl7_generator.py</code></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Data Flow — SIU S12 (Book Appointment)</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+1. POST /api/scheduling/trigger/
+   Body: { "patient_id": "P-001", "event_type": "S12",
+           "appointment_dt": "2026-06-15T14:00:00",
+           "appointment_type": "ROUTINE" }
+
+2. SIUTriggerView
+   └─ validate via SIUTriggerSerializer
+   └─ auto-assign provider + location if not supplied
+   └─ generate_siu(...)  → raw HL7 string
+       MSH|^~\&|SCHEDULING|FAC1|...|SIU^S12|...
+       SCH|APPT-001|APPT-001-F|||ROUTINE^...|30|min|...
+       PID|1||P-001^^^...
+       PV1|1|O|CLINIC-1^...
+       RGS|1|A
+       AIS|1|A|Annual_physical^Annual physical^L|...
+       AIL|1|A|CLINIC-1^CLINIC-1^L|||...
+       AIP|1|A|PROV-101^Dr. Test^L|MD|...
+
+3. SIUMessage.objects.create(...)  →  stored in DB</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4 — ORU / ORM                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-oru-orm" class="mb-5">
+  <h2 class="border-bottom pb-2">4 — HL7 ORU &amp; ORM</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">ORU^R01 — Lab Result</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-2">
+            <tr><th style="width:110px">Segments</th><td><code>MSH · PID · PV1 · OBR · OBX</code></td></tr>
+            <tr><th>OBR-4</th><td>Ordered test (LOINC code + name)</td></tr>
+            <tr><th>OBX-3</th><td>Observation code (LOINC) — maps to FHIR <code>Observation.code</code></td></tr>
+            <tr><th>OBX-5</th><td>Observation value (result)</td></tr>
+            <tr><th>OBX-6</th><td>Units (g/dL, %, etc.)</td></tr>
+            <tr><th>OBX-7</th><td>Reference range</td></tr>
+            <tr><th>OBX-8</th><td>Abnormal flag (H/L/N)</td></tr>
+            <tr><th>FHIR output</th><td><code>DiagnosticReport</code> + <code>Observation</code></td></tr>
+          </table>
+          <p class="mb-0 text-muted">Key insight: <strong>OBX-3 is always a LOINC code</strong> in a standards-compliant interface. If a sending system uses local codes, the integration engine must map them to LOINC before forwarding downstream.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">ORM^O01 — Clinical Order</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-2">
+            <tr><th style="width:110px">Segments</th><td><code>MSH · PID · PV1 · ORC · OBR</code></td></tr>
+            <tr><th>ORC-1</th><td>Order control (NW=new, CA=cancel, DC=discontinue)</td></tr>
+            <tr><th>ORC-2</th><td>Placer order number (ordering system ID)</td></tr>
+            <tr><th>ORC-3</th><td>Filler order number (fulfilling system ID)</td></tr>
+            <tr><th>OBR-4</th><td>Universal service ID (what is ordered)</td></tr>
+            <tr><th>OBR-7</th><td>Observation date/time (when collected)</td></tr>
+            <tr><th>FHIR output</th><td><code>ServiceRequest</code></td></tr>
+          </table>
+          <p class="mb-0 text-muted">ORM flows from the ordering system (EHR) to the fulfilling system (Lab/Radiology). The OBR-4 code should be a LOINC or CPT code identifying the service.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 5 — DFT                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="hl7-dft" class="mb-5">
+  <h2 class="border-bottom pb-2">5 — HL7 DFT^P03 (Billing)</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Key Facts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Standard</th><td>HL7 v2.3</td></tr>
+            <tr><th>Message type</th><td><code>DFT^P03</code></td></tr>
+            <tr><th>Purpose</th><td>Itemised charge data from clinical to billing</td></tr>
+            <tr><th>Segments</th><td><code>MSH · EVN · PID · PV1 · FT1 (repeating)</code></td></tr>
+            <tr><th>FT1-4</th><td>Service date</td></tr>
+            <tr><th>FT1-7</th><td>Transaction type (CG=Charge, CR=Credit, PY=Payment)</td></tr>
+            <tr><th>FT1-10</th><td>Transaction quantity</td></tr>
+            <tr><th>FT1-11</th><td>Transaction amount per unit</td></tr>
+            <tr><th>FT1-12</th><td>Department code</td></tr>
+            <tr><th>FT1-14</th><td>Insurance plan ID</td></tr>
+            <tr><th>FT1-16</th><td>Procedure code (CPT)</td></tr>
+            <tr><th>Demo endpoint</th><td><code>GET /api/adt/dft/</code></td></tr>
+            <tr><th>Code file</th><td><code>adt/dft_generator.py</code>, <code>adt/dft_service.py</code></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">FT1 → X12 837P Mapping</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+HL7 FT1 Segment          →   X12 837P Segment
+
+FT1-4  (service date)    →   DTP*472*D8*YYYYMMDD~
+FT1-16 (procedure code)  →   SV1*HC:{CPT-code}*...
+FT1-11 (unit amount)     →   SV1 element 02 (charge amount)
+FT1-10 (quantity)        →   SV1 element 04 (service units)
+FT1-1  (line number)     →   LX*{line}~ (service line counter)
+
+Sum of all FT1-11 × FT1-10  →  CLM02 (total billed amount)
+
+One DFT message = one CLM loop in the 837P
+Each FT1 segment = one LX/SV1 service line
+
+Admission charges (A01):    Room/Board, IV Setup, Supplies
+Discharge charges (A03):    ED Visit (99284), CBC (85025),
+                             X-Ray (71046), IV Infusion, Hospital Care</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 6 — C-CDA                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="ccda" class="mb-5">
+  <h2 class="border-bottom pb-2">6 — C-CDA R2.1</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Key Facts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Standard</th><td>HL7 Clinical Document Architecture (CDA) R2 + C-CDA R2.1</td></tr>
+            <tr><th>Format</th><td>XML (not ER7) · namespace <code>urn:hl7-org:v3</code></td></tr>
+            <tr><th>Purpose</th><td>Patient summary for transitions of care, referrals, Meaningful Use</td></tr>
+            <tr><th>CCD templateId</th><td><code>2.16.840.1.113883.10.20.22.1.2.1</code></td></tr>
+            <tr><th>LOINC doc code</th><td><code>34133-9</code> (Summarization of episode note)</td></tr>
+            <tr><th>Required sections</th><td>Allergies · Medications · Problem List</td></tr>
+            <tr><th>Demo sections</th><td>Allergies (NKA) · Problem List (ICD-10) · Encounters</td></tr>
+            <tr><th>Demo endpoint</th><td><code>POST /api/ccda/generate/</code></td></tr>
+            <tr><th>Code file</th><td><code>ccda/generator.py</code></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Document Structure</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+ClinicalDocument (root)
+├─ Header
+│   ├─ realmCode code="US"
+│   ├─ typeId (POCD_HD000040 = CDA R2)
+│   ├─ templateId (CDA R2 + C-CDA R2.1 CCD)
+│   ├─ id (UUID)
+│   ├─ code (LOINC 34133-9)
+│   ├─ effectiveTime (generation timestamp)
+│   ├─ confidentialityCode (N = normal)
+│   ├─ recordTarget → patientRole
+│   │     └─ id (MRN), addr, patient (name/gender/dob)
+│   ├─ author → assignedAuthoringDevice
+│   └─ custodian → representedCustodianOrganization
+└─ component → structuredBody
+    ├─ Allergies section  (LOINC 48765-2)
+    │   └─ entry: act/observation negationInd="true" (NKA)
+    ├─ Problem List section  (LOINC 11450-4)
+    │   └─ entry per unique ICD-10 from ClinicalRecords
+    └─ Encounters section  (LOINC 46240-8)
+        └─ entry per ClinicalRecord (visit date, type, dx, proc)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 7 — FHIR R4                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="fhir" class="mb-5 page-break">
+  <h2 class="border-bottom pb-2">7 — FHIR R4</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Key Facts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Standard</th><td>HL7 FHIR R4 (4.0.1)</td></tr>
+            <tr><th>Format</th><td>JSON (also XML-capable) · RESTful HTTP</td></tr>
+            <tr><th>Resources</th><td>Patient · Encounter · DiagnosticReport · Observation</td></tr>
+            <tr><th>Patient ID</th><td><code>Patient.identifier[0].value</code> = MRN</td></tr>
+            <tr><th>SMART on FHIR</th><td>OAuth2 app authorisation; <code>.well-known/smart-configuration</code></td></tr>
+            <tr><th>Da Vinci</th><td>CRD (Coverage Requirements Discovery) + PAS (Prior Auth Support)</td></tr>
+            <tr><th>Search params</th><td><code>?patient=P-001</code> · <code>?_lastUpdated=gt2024-01-01</code></td></tr>
+            <tr><th>Capability</th><td><code>GET /fhir/</code> returns CapabilityStatement</td></tr>
+            <tr><th>Code file</th><td><code>example/fhir_views.py</code></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">HL7 v2 → FHIR R4 Mapping (ADT/ORU)</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+HL7 v2 Field            FHIR R4 Resource.Element
+
+PID-3.1 (MRN)       →   Patient.identifier[0].value
+PID-5.1 (last name) →   Patient.name[0].family
+PID-5.2 (first name)→   Patient.name[0].given[0]
+PID-7   (DOB)       →   Patient.birthDate
+PID-8   (gender M/F)→   Patient.gender (male/female/unknown)
+PID-11  (address)   →   Patient.address[0]
+
+PV1-2   (patient class) → Encounter.class (IMP/AMB/ER)
+PV1-3   (location)      → Encounter.location[0]
+PV1-19  (visit number)  → Encounter.identifier[0].value
+
+OBR-4   (ordered test)  → DiagnosticReport.code
+OBX-3   (obs code)      → Observation.code (LOINC)
+OBX-5   (obs value)     → Observation.valueQuantity / valueString
+OBX-6   (units)         → Observation.valueQuantity.unit
+OBX-8   (abnormal flag) → Observation.interpretation</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 8 — X12                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="x12" class="mb-5">
+  <h2 class="border-bottom pb-2">8 — X12 837P &amp; 835</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">837P — Professional Claim</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-2">
+            <tr><th style="width:110px">Standard</th><td>ASC X12 005010X222A2</td></tr>
+            <tr><th>Segment sep</th><td>Tilde <code>~</code> (element sep: <code>*</code>)</td></tr>
+            <tr><th>ISA/GS</th><td>Interchange + functional group envelope</td></tr>
+            <tr><th>ST*837</th><td>Transaction set header</td></tr>
+            <tr><th>CLM01</th><td>Claim ID (unique per bill)</td></tr>
+            <tr><th>CLM02</th><td>Total billed amount</td></tr>
+            <tr><th>CLM05</th><td>Place of service + frequency (11:B:1 = office)</td></tr>
+            <tr><th>LX*N</th><td>Service line counter (1, 2, 3…)</td></tr>
+            <tr><th>SV1*HC:code</th><td>CPT procedure code + charge + units</td></tr>
+            <tr><th>DTP*472</th><td>Date of service (D8 format = YYYYMMDD)</td></tr>
+          </table>
+          <p class="mb-0 text-muted"><strong>One DFT message = one CLM loop. Each FT1 charge line = one LX/SV1 pair.</strong></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">835 — Remittance Advice (ERA)</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-2">
+            <tr><th style="width:110px">Standard</th><td>ASC X12 005010X221A1</td></tr>
+            <tr><th>Purpose</th><td>Payer → Provider: explanation of payment</td></tr>
+            <tr><th>BPR</th><td>Financial information (payment amount, ACH details)</td></tr>
+            <tr><th>TRN</th><td>Trace number (check/EFT reference)</td></tr>
+            <tr><th>CLP01</th><td>Claim reference number (matches 837P CLM01)</td></tr>
+            <tr><th>CLP02</th><td>Claim status (1=paid, 2=adjusted, 3=denied)</td></tr>
+            <tr><th>CLP03</th><td>Total billed (should match 837P CLM02)</td></tr>
+            <tr><th>CLP04</th><td>Total paid</td></tr>
+            <tr><th>SVC</th><td>Service line detail (per CPT code)</td></tr>
+            <tr><th>CAS*CO*45</th><td>Adjustment: contractual write-off</td></tr>
+          </table>
+          <p class="mb-0 text-muted">The 835 is how providers know what was paid for each claim. Balance = billed − paid − write-off.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 9 — FLAT FILES                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="flat-files" class="mb-5">
+  <h2 class="border-bottom pb-2">9 — SFTP Flat-File Ingestion</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Pipeline Steps</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+1. File upload  →  POST /api/sftp/upload/  (multipart)
+
+2. Decode bytes  (UTF-8-BOM → UTF-8 → Latin-1)
+
+3. Detect delimiter  (count commas vs pipes vs tabs in header row)
+
+4. csv.DictReader  with detected delimiter
+
+5. Detect schema  (header overlap with signal sets)
+   PATIENT signals:  mrn, first_name, last_name, dob, date_of_birth
+   CLINICAL signals: visit_date, diagnosis_code, procedure_code, visit_type
+
+6. Validate each row (collect errors, never abort)
+   PATIENT:  mrn required · first/last_name required
+             dob format + not future · gender M/F/U/O
+             state 2-char
+   CLINICAL: mrn required · visit_date required + not future
+             diagnosis_code: regex ^[A-Z][0-9A-Z]{1,6}(\.[0-9A-Z]{1,4})?$
+             procedure_code: CPT ^[0-9]{4,5}[A-Z]?$ or HCPCS ^[A-Z][0-9]{4}$
+
+7. Intra-file MRN deduplication  (seen_mrns set)
+
+8. Persist
+   PATIENT  → PatientRecord.objects.update_or_create(mrn=...)
+   CLINICAL → ClinicalRecord.objects.bulk_create(...)
+
+9. SFTPIngestRun audit record stored regardless of outcome</pre>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">ParseResult Dataclass</div>
+        <div class="card-body small">
+          <p class="text-muted mb-2">The parser returns a <code>ParseResult</code> with no ORM imports — pure data transformation layer.</p>
+          <table class="table table-sm table-borderless mb-2">
+            <tr><th style="width:150px">Field</th><th>Meaning</th></tr>
+            <tr><td><code>schema_type</code></td><td>PATIENT / CLINICAL / UNKNOWN</td></tr>
+            <tr><td><code>delimiter_name</code></td><td>COMMA / PIPE / TAB</td></tr>
+            <tr><td><code>valid_records</code></td><td>list of clean dicts (ready to persist)</td></tr>
+            <tr><td><code>validation_errors</code></td><td>list of {rownum, field, error, raw_value}</td></tr>
+            <tr><td><code>duplicate_mrns</code></td><td>count of intra-file duplicates skipped</td></tr>
+            <tr><td><code>fatal_error</code></td><td>set on encoding/schema/empty-file errors</td></tr>
+          </table>
+          <p class="mb-0 text-muted"><strong>Design principle:</strong> Errors are <em>collected</em>, not raised. A single bad row never aborts the whole file. Valid rows are persisted even if 30% fail validation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 10 — LOINC                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="loinc" class="mb-5">
+  <h2 class="border-bottom pb-2">10 — LOINC Codes</h2>
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">What LOINC Is &amp; Where It Appears</div>
+        <div class="card-body small">
+          <p>LOINC (Logical Observation Identifiers Names and Codes) is the universal standard for identifying clinical observations. Every result, vital sign, and document type has a LOINC code.</p>
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:120px">HL7 v2</th><td>OBX-3 (observation identifier in ORU/ORM)</td></tr>
+            <tr><th>FHIR R4</th><td><code>Observation.code</code> · <code>DiagnosticReport.code</code></td></tr>
+            <tr><th>C-CDA</th><td>Section codes (48765-2 Allergies, 11450-4 Problems, etc.)</td></tr>
+            <tr><th>Structure</th><td><code>code^name^LN</code> in HL7 (LN = LOINC system)</td></tr>
+          </table>
+          <p class="mt-2 mb-0"><strong>Common codes to know:</strong></p>
+          <ul class="mb-0 ps-3">
+            <li><code>718-7</code> — Hemoglobin (g/dL)</li>
+            <li><code>4548-4</code> — HbA1c (%)</li>
+            <li><code>8480-6</code> — Systolic BP (mmHg)</li>
+            <li><code>2160-0</code> — Creatinine (mg/dL)</li>
+            <li><code>10839-9</code> — Troponin I (ng/mL)</li>
+            <li><code>34133-9</code> — Summarization of episode (CCD)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">LOINC in an HL7 ORU message</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+MSH|^~\&|LAB|FAC1|EHR|FAC1|20240315||ORU^R01|MSG001|P|2.3
+PID|1||P-001||Smith^John||19800315|M
+OBR|1||LAB001|85025^CBC WITH DIFFERENTIAL^LN|||20240315
+          ──────────────────────────────────
+          OBR-4: LOINC code for the panel ordered
+
+OBX|1|NM|718-7^Hemoglobin^LN||14.2|g/dL|13.5-17.5|N|||F
+         ───────────────────
+         OBX-3: 718-7 is the LOINC code for Hemoglobin
+         Maps to → Observation.code.coding[0].code = "718-7"
+                    Observation.code.coding[0].system = "http://loinc.org"
+
+OBX|2|NM|4544-3^Hematocrit^LN||44|%|40-52|N|||F
+OBX|3|NM|6690-2^WBC^LN||7.2|10*3/uL|4.5-11.0|N|||F</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 11 — MIRTH                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="mirth" class="mb-5 page-break">
+  <h2 class="border-bottom pb-2">11 — Mirth Connect</h2>
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Channel Concepts</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">Source Connector</th><td>Where messages arrive (TCP/MLLP, HTTP, file, DB)</td></tr>
+            <tr><th>Transformer</th><td>JavaScript code that runs on every message; can map, filter, route</td></tr>
+            <tr><th>Destination</th><td>Where processed messages go (REST, DB, file, another channel)</td></tr>
+            <tr><th>channelMap</th><td>Key-value store shared between transformer and destinations</td></tr>
+            <tr><th>msg object</th><td>Auto-parsed HL7: <code>msg['PID']['PID.3']['PID.3.1']</code></td></tr>
+            <tr><th>MLLP</th><td>Minimum Lower Layer Protocol — wraps HL7 in TCP with VT/FS/CR framing</td></tr>
+            <tr><th>ACK</th><td>MSH acknowledgement: AA (accept), AE (error), AR (reject)</td></tr>
+            <tr><th>connectorMessage</th><td><code>.getRawData()</code> = original HL7 string</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">JS Transformer — what each line does</div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3 small" style="background:#f8f9fa;color:#212529;font-size:.78rem">
+// Parse segments
+var patientId = msg['PID']['PID.3']['PID.3.1'].toString();
+//  └─ msg = parsed HL7 object. PID-3.1 = first component of PID field 3
+//     In HL7: PID|1||P-001^^^DEMO|||Smith^John|...
+//                    ↑ PID.3.1 (MRN)       ↑ PID.5.1 (last name)
+
+// Route by trigger event
+var trigEvent = msg['MSH']['MSH.9']['MSH.9.2'].toString();
+if (trigEvent == 'A01' || trigEvent == 'A03') {
+  channelMap.put('routeToBilling', 'true');
+  // This flag is read by the Destination Filter:
+  // destination 2 only fires if routeToBilling == 'true'
+}
+
+// Build payload for REST destination connector
+var payload = { patient_id: patientId, raw_hl7: connectorMessage.getRawData() };
+channelMap.put('jsonPayload', JSON.stringify(payload));
+// In the REST Destination body template: ${channelMap.get('jsonPayload')}
+
+// Validation
+if (!patientId) {
+  channelMap.put('ackCode', 'AE');  // error ACK back to sender
+} else {
+  channelMap.put('ackCode', 'AA');  // accept ACK
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 12 — TRACING                                                  -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="tracing" class="mb-5">
+  <h2 class="border-bottom pb-2">12 — Tracing &amp; Data Quality</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">TraceLog Model</div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th style="width:130px">trace_id</th><td>UUID assigned at ingest, propagated to every downstream record</td></tr>
+            <tr><th>status</th><td>RECEIVED → VALIDATED → TRANSFORMED (or FAILED)</td></tr>
+            <tr><th>TraceStep</th><td>One row per pipeline step; records step name + latency_ms + status</td></tr>
+            <tr><th>Quality flags</th><td>INCOMPLETE: empty patient_id or VALIDATION error category</td></tr>
+            <tr><th></th><td>DELAYED: stuck in RECEIVED/VALIDATED > 300 seconds</td></tr>
+            <tr><th>DQ dashboard</th><td>Queries TraceLog + HL7MessageLog + ADTMessage + DFTMessage</td></tr>
+            <tr><th>Auto-refresh</th><td>30s interval → <code>GET /dq/metrics/</code> JSON API → Chart.js update</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Why Tracing Matters in Interviews</div>
+        <div class="card-body small">
+          <p>Interviewers often ask: <em>"How would you debug a message that arrived at Mirth but never appeared in the EHR?"</em></p>
+          <ol class="mb-0 ps-3">
+            <li>Check the Mirth channel dashboard — did the message enter the channel? (Source queue)</li>
+            <li>Check the Transformer log — did the JS throw an error? (syntax, null PID-3)</li>
+            <li>Check the Destination log — did the REST POST return a non-200? (auth, schema)</li>
+            <li>Query <code>HL7MessageLog</code> by <code>trace_id</code> — what was the <code>processing_status</code>?</li>
+            <li>Check <code>TraceStep</code> for the last completed step and its <code>latency_ms</code></li>
+            <li>Look at <code>error_category</code> — VALIDATION vs MAPPING vs DOWNSTREAM</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 13 — INTERVIEW Q&A                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="interview-qa" class="mb-5 page-break">
+  <h2 class="border-bottom pb-2">13 — Interview Q&amp;A</h2>
+
+  {% for qa in interview_qa %}
+  <div class="card mb-3">
+    <div class="card-header fw-semibold" style="background:#e8f4fd">
+      Q{{ forloop.counter }}: {{ qa.q }}
+    </div>
+    <div class="card-body small">
+      {{ qa.a|safe }}
+      {% if qa.demo %}
+      <div class="mt-2 alert alert-light border py-1 px-2 mb-0">
+        <strong>In this demo:</strong> {{ qa.demo|safe }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 14 — CODE MAP                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<section id="code-map" class="mb-5">
+  <h2 class="border-bottom pb-2">14 — Code Map: What File Does What</h2>
+  <div class="card">
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0 small">
+        <thead class="table-light">
+          <tr><th>File</th><th>What it does</th><th>Key function / class</th></tr>
+        </thead>
+        <tbody>
+          {% for row in code_map %}
+          <tr>
+            <td><code>{{ row.file }}</code></td>
+            <td>{{ row.desc }}</td>
+            <td><code>{{ row.key }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header fw-semibold">How to Read the Code — Learning Path</div>
+    <div class="card-body small">
+      <ol class="mb-0">
+        <li><strong>Start with a model file</strong> (e.g. <code>adt/models.py</code>). Understand every field. Ask: what does the DB store? What are the choices?</li>
+        <li><strong>Read the generator</strong> (e.g. <code>adt/hl7_generator.py</code>). It has no Django imports — pure logic. Trace how the HL7 string is built segment by segment.</li>
+        <li><strong>Read the view</strong> (e.g. <code>adt/views.py → ADTTriggerView.post()</code>). Follow: validate → generate → persist → respond.</li>
+        <li><strong>Run a test</strong> (<code>python manage.py test scheduling</code>). Read each test name to understand what the code is supposed to guarantee.</li>
+        <li><strong>Hit the endpoint</strong> with curl or the UI and read the raw JSON / HL7 back. Compare to the spec tables in this guide.</li>
+        <li><strong>Trace the data</strong>: after triggering an ADT A01, query <code>/api/adt/dft/</code> — the DFT and 837P should be there automatically. That end-to-end chain is the portfolio talking point.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('nav a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelector(a.getAttribute('href'))?.scrollIntoView({behavior:'smooth',block:'start'});
+    document.querySelectorAll('nav .nav-link').forEach(l => l.classList.remove('active'));
+    a.classList.add('active');
+  });
+});
+</script>
+{% endblock %}

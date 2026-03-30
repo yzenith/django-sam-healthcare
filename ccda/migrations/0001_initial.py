@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     initial = True
     dependencies = [
-        ("example", "0001_initial"),
+        ("example", "0005_patientimportrun_patientrecord"),
     ]
 
     operations = [

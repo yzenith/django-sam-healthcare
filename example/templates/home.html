@@ -6,29 +6,29 @@
 <!-- Hero / Story -->
 <div class="row mb-5">
   <div class="col-lg-9">
-    <h1 class=”mb-2”>Healthcare Integration Engineer Demo</h1>
-    <div class=”text-muted mb-3”>
+    <h1 class="mb-2">Healthcare Integration Engineer Demo</h1>
+    <div class="text-muted mb-3">
       HL7 v2 · FHIR R4 · X12 837/835 · C-CDA R2.1 · SIU · LOINC · Mirth Connect
     </div>
 
-    <p class=”lead mb-2”>
+    <p class="lead mb-2">
       Built to demonstrate production-style healthcare interface engineering:
       HL7 triage, FHIR normalization, X12 claim traceability, reconciliation, and operational monitoring.
     </p>
 
-    <p class=”text-muted mb-3”>
+    <p class="text-muted mb-3">
       In real healthcare systems, data rarely fails because of a single bug —
       it fails because messages move across <strong>formats, vendors, protocols, and responsibilities</strong>.
       This demo models that reality end-to-end.
     </p>
 
-    <form method=”post” action=”{% url 'guided-demo' %}” class=”d-inline”>
+    <form method="post" action="{% url 'guided-demo' %}" class="d-inline">
       {% csrf_token %}
-      <button type=”submit” class=”btn btn-success btn-lg me-2”>
+      <button type="submit" class="btn btn-success btn-lg me-2">
         ▶ Run Guided Demo
       </button>
     </form>
-    <a href=”{% url 'overview' %}” class=”btn btn-outline-secondary btn-lg”>Read Overview</a>
+    <a href="{% url 'overview' %}" class="btn btn-outline-secondary btn-lg">Read Overview</a>
   </div>
 </div>
 

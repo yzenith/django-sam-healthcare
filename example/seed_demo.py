@@ -8,6 +8,9 @@ Shared seeding logic — called by both:
 Creates realistic demo records across every message type so a recruiter
 lands on the site and sees a populated, working pipeline instead of
 empty tables.
+
+Timestamps are always generated relative to NOW so the data always
+looks current (within the last 72 hours).
 """
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -17,115 +20,123 @@ from example.hl7_utils import (
     extract_source_context_from_msh, generate_ack,
 )
 
-# ---------------------------------------------------------------------------
-# Sample HL7 messages — one per message type / scenario
-# ---------------------------------------------------------------------------
 
-SEED_MESSAGES = [
-    # --- ADT A01: Inpatient admission (normal) ---
-    {
-        "hl7": (
-            "MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260115090000||ADT^A01|ADT001|P|2.5\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F|||100 MAIN ST^^DALLAS^TX^75201\r"
-            "PV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||ADM|||20260115090000\r"
-        ),
-    },
-    # --- ADT A03: Discharge (triggers 837+835) ---
-    {
-        "hl7": (
-            "MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260115150000||ADT^A03|ADT002|P|2.5\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
-            "PV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||||20260115090000\r"
-        ),
-    },
-    # --- ADT A04: ER registration ---
-    {
-        "hl7": (
-            "MSH|^~\\&|CERNER|RIVERSIDE_MED|MIRTH|FACILITY|20260115093000||ADT^A04|ADT003|P|2.5\r"
-            "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M|||456 OAK AVE^^IRVING^TX^75062\r"
-            "PV1|1|E|ER^E01^1||||3001^DAVIS^SARAH|||EM\r"
-        ),
-    },
-    # --- ADT A01: Facility variance (missing MSH-3/4) ---
-    {
-        "hl7": (
-            "MSH|^~\\&|||MIRTH|FACILITY|20260115100000||ADT^A01|ADT004|P|2.5\r"
-            "PID|1||10003^^^MRN||CHEN^LI||19900810|F\r"
-            "PV1|1|O|CLINIC^201^B\r"
-        ),
-    },
-    # --- ADT A01: Validation failure (missing PID-3) ---
-    {
-        "hl7": (
-            "MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260115110000||ADT^A01|ADT005|P|2.5\r"
-            "PID|1||||DOE^UNKNOWN||19700101|M\r"
-            "PV1|1|I|GENERAL^301^C\r"
-        ),
-    },
-    # --- ADT A08: Update patient info ---
-    {
-        "hl7": (
-            "MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|20260116090000||ADT^A08|ADT006|P|2.5\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F|||200 NEW ST^^DALLAS^TX^75202\r"
-        ),
-    },
-    # --- ORU R01: Normal lab result ---
-    {
-        "hl7": (
-            "MSH|^~\\&|LAB_SYS|MEMORIAL_HOSP|EHR|FACILITY|20260115120000||ORU^R01|ORU001|P|2.5\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
-            "OBR|1||LAB001|1558-6^Hemoglobin^LN|||20260115120000\r"
-            "OBX|1|NM|1558-6^Hemoglobin^LN||13.5|g/dL|12.0-16.0|N\r"
-            "OBX|2|NM|787-2^MCV^LN||88|fL|80-100|N\r"
-        ),
-    },
-    # --- ORU R01: Abnormal lab result ---
-    {
-        "hl7": (
-            "MSH|^~\\&|LAB_SYS|RIVERSIDE_MED|EHR|FACILITY|20260115130000||ORU^R01|ORU002|P|2.5\r"
-            "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M\r"
-            "OBR|1||LAB002|2093-3^Cholesterol^LN|||20260115130000\r"
-            "OBX|1|NM|2093-3^Cholesterol^LN||245|mg/dL|<200|H\r"
-        ),
-    },
-    # --- ORM O01: New lab order ---
-    {
-        "hl7": (
-            "MSH|^~\\&|ORDERENTRY|MEMORIAL_HOSP|LAB|FACILITY|20260115140000||ORM^O01|ORM001|P|2.5\r"
-            "PID|1||10003^^^MRN||CHEN^LI||19900810|F\r"
-            "ORC|NW|ORD001|||||||20260115140000\r"
-            "OBR|1|ORD001||55231-5^Basic metabolic panel^LN||R|20260115150000\r"
-        ),
-    },
-    # --- MDM T02: Consultation note ---
-    {
-        "hl7": (
-            "MSH|^~\\&|EHR_DOC|MEMORIAL_HOSP|CDMS|FACILITY|20260115160000||MDM^T02|MDM001|P|2.5\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
-            "EVN|T02|20260115160000\r"
-            "TXA|1|11488-4^Consultation note^LN||20260115160000||||||||DOC001||||||AU\r"
-        ),
-    },
-    # --- SIU S12: New appointment ---
-    {
-        "hl7": (
-            "MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|20260116090000||SIU^S12|SIU001|P|2.5\r"
-            "SCH|APT001|FIL001|||||||30||^^^20260120090000||||||||||||||Pending\r"
-            "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M\r"
-            "AIS|1||40701008^Cardiology consultation^SCT\r"
-            "AIP|1||2001^SMITH^ROBERT\r"
-        ),
-    },
-    # --- SIU S15: Appointment cancelled ---
-    {
-        "hl7": (
-            "MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|20260116110000||SIU^S15|SIU002|P|2.5\r"
-            "SCH|APT002|FIL002|||||||60||^^^20260120140000||||||||||||||Cancelled\r"
-            "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
-            "AIS|1||40701008^Cardiology consultation^SCT\r"
-        ),
-    },
-]
+def _ts(hours_ago=0, minutes_ago=0):
+    """Return an HL7 timestamp string relative to now."""
+    dt = datetime.now(timezone.utc) - timedelta(hours=hours_ago, minutes=minutes_ago)
+    return dt.strftime("%Y%m%d%H%M%S")
+
+
+def _build_seed_messages():
+    """
+    Build SEED_MESSAGES list with timestamps relative to now.
+    Called fresh on every seed so timestamps stay current.
+    """
+    return [
+        # --- ADT A01: Inpatient admission (normal) ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|{_ts(hours_ago=48)}||ADT^A01|ADT001|P|2.5\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F|||100 MAIN ST^^DALLAS^TX^75201\r"
+                f"PV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||ADM|||{_ts(hours_ago=48)}\r"
+            ),
+        },
+        # --- ADT A03: Discharge (triggers 837+835) ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|{_ts(hours_ago=42)}||ADT^A03|ADT002|P|2.5\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
+                f"PV1|1|I|CARDIAC^101^A||||2001^SMITH^ROBERT|||INT||||||{_ts(hours_ago=48)}\r"
+            ),
+        },
+        # --- ADT A04: ER registration ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|CERNER|RIVERSIDE_MED|MIRTH|FACILITY|{_ts(hours_ago=36)}||ADT^A04|ADT003|P|2.5\r"
+                "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M|||456 OAK AVE^^IRVING^TX^75062\r"
+                "PV1|1|E|ER^E01^1||||3001^DAVIS^SARAH|||EM\r"
+            ),
+        },
+        # --- ADT A01: Facility variance (missing MSH-3/4) ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|||MIRTH|FACILITY|{_ts(hours_ago=30)}||ADT^A01|ADT004|P|2.5\r"
+                "PID|1||10003^^^MRN||CHEN^LI||19900810|F\r"
+                "PV1|1|O|CLINIC^201^B\r"
+            ),
+        },
+        # --- ADT A01: Validation failure (missing PID-3) ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|{_ts(hours_ago=24)}||ADT^A01|ADT005|P|2.5\r"
+                "PID|1||||DOE^UNKNOWN||19700101|M\r"
+                "PV1|1|I|GENERAL^301^C\r"
+            ),
+        },
+        # --- ADT A08: Update patient info ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|EPIC|MEMORIAL_HOSP|MIRTH|FACILITY|{_ts(hours_ago=18)}||ADT^A08|ADT006|P|2.5\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F|||200 NEW ST^^DALLAS^TX^75202\r"
+            ),
+        },
+        # --- ORU R01: Normal lab result ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|LAB_SYS|MEMORIAL_HOSP|EHR|FACILITY|{_ts(hours_ago=12)}||ORU^R01|ORU001|P|2.5\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
+                f"OBR|1||LAB001|1558-6^Hemoglobin^LN|||{_ts(hours_ago=12)}\r"
+                "OBX|1|NM|1558-6^Hemoglobin^LN||13.5|g/dL|12.0-16.0|N\r"
+                "OBX|2|NM|787-2^MCV^LN||88|fL|80-100|N\r"
+            ),
+        },
+        # --- ORU R01: Abnormal lab result ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|LAB_SYS|RIVERSIDE_MED|EHR|FACILITY|{_ts(hours_ago=8)}||ORU^R01|ORU002|P|2.5\r"
+                "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M\r"
+                f"OBR|1||LAB002|2093-3^Cholesterol^LN|||{_ts(hours_ago=8)}\r"
+                "OBX|1|NM|2093-3^Cholesterol^LN||245|mg/dL|<200|H\r"
+            ),
+        },
+        # --- ORM O01: New lab order ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|ORDERENTRY|MEMORIAL_HOSP|LAB|FACILITY|{_ts(hours_ago=6)}||ORM^O01|ORM001|P|2.5\r"
+                "PID|1||10003^^^MRN||CHEN^LI||19900810|F\r"
+                f"ORC|NW|ORD001|||||||{_ts(hours_ago=6)}\r"
+                f"OBR|1|ORD001||55231-5^Basic metabolic panel^LN||R|{_ts(hours_ago=5)}\r"
+            ),
+        },
+        # --- MDM T02: Consultation note ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|EHR_DOC|MEMORIAL_HOSP|CDMS|FACILITY|{_ts(hours_ago=4)}||MDM^T02|MDM001|P|2.5\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
+                f"EVN|T02|{_ts(hours_ago=4)}\r"
+                f"TXA|1|11488-4^Consultation note^LN||{_ts(hours_ago=4)}||||||||DOC001||||||AU\r"
+            ),
+        },
+        # --- SIU S12: New appointment ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|{_ts(hours_ago=2)}||SIU^S12|SIU001|P|2.5\r"
+                "SCH|APT001|FIL001|||||||30||^^^20260120090000||||||||||||||Pending\r"
+                "PID|1||10002^^^MRN||GARCIA^MIGUEL||19850620|M\r"
+                "AIS|1||40701008^Cardiology consultation^SCT\r"
+                "AIP|1||2001^SMITH^ROBERT\r"
+            ),
+        },
+        # --- SIU S15: Appointment cancelled ---
+        {
+            "hl7": (
+                f"MSH|^~\\&|SCHEDULING|MEMORIAL_HOSP|EHR|FACILITY|{_ts(minutes_ago=30)}||SIU^S15|SIU002|P|2.5\r"
+                "SCH|APT002|FIL002|||||||60||^^^20260120140000||||||||||||||Cancelled\r"
+                "PID|1||10001^^^MRN||JOHNSON^ALICE||19720315|F\r"
+                "AIS|1||40701008^Cardiology consultation^SCT\r"
+            ),
+        },
+    ]
 
 
 def seed_demo_data(clear_existing=False):
@@ -152,7 +163,7 @@ def seed_demo_data(clear_existing=False):
     created_claims = 0
     created_webhooks = 0
 
-    for item in SEED_MESSAGES:
+    for item in _build_seed_messages():
         hl7_raw = item["hl7"]
 
         errors, warnings = validate_hl7_message(hl7_raw)

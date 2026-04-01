@@ -6,41 +6,29 @@
 <!-- Hero / Story -->
 <div class="row mb-5">
   <div class="col-lg-9">
-    <h1 class="mb-2">Healthcare Integration Engineer Demo</h1>
-    <div class="text-muted">
-      HL7 v2 → FHIR R4 → X12 (837/835) • Validation • Traceability • Reconciliation
+    <h1 class=”mb-2”>Healthcare Integration Engineer Demo</h1>
+    <div class=”text-muted mb-3”>
+      HL7 v2 · FHIR R4 · X12 837/835 · C-CDA R2.1 · SIU · LOINC · Mirth Connect
     </div>
 
-    <p class="lead">
-      This demo represents a simplified but realistic healthcare integration environment.
-
-        It is designed to showcase how an Integration Engineer:
-        - Designs and validates inbound HL7 interfaces
-        - Transforms messages into FHIR R4 and X12
-        - Traces issues across systems with full auditability
-        - Operates pipelines with observability and error recovery
-
-
+    <p class=”lead mb-2”>
+      Built to demonstrate production-style healthcare interface engineering:
+      HL7 triage, FHIR normalization, X12 claim traceability, reconciliation, and operational monitoring.
     </p>
 
-    <p class="lead">
-      In real healthcare systems, data rarely fails because of a single bug.
-      It fails because messages move across <strong>formats, vendors, protocols,
-      and responsibilities</strong>.
+    <p class=”text-muted mb-3”>
+      In real healthcare systems, data rarely fails because of a single bug —
+      it fails because messages move across <strong>formats, vendors, protocols, and responsibilities</strong>.
+      This demo models that reality end-to-end.
     </p>
 
-    <p class="lead">
-      This demo models that reality by tracing a single message as it moves through:
-      <strong>HL7 v2 → FHIR R4 → X12 (837 / 835)</strong>,
-      with full observability, validation, and auditability.
-    </p>
-
-    <p class="text-muted">
-      The goal is not just transformation, but <strong>traceability</strong>:
-      answering questions like <em>“What happened?”</em>,
-      <em>“Where did it fail?”</em>, and
-      <em>“Can we prove it later?”</em>
-    </p>
+    <form method=”post” action=”{% url 'guided-demo' %}” class=”d-inline”>
+      {% csrf_token %}
+      <button type=”submit” class=”btn btn-success btn-lg me-2”>
+        ▶ Run Guided Demo
+      </button>
+    </form>
+    <a href=”{% url 'overview' %}” class=”btn btn-outline-secondary btn-lg”>Read Overview</a>
   </div>
 </div>
 
@@ -51,9 +39,8 @@
     <div class="alert alert-primary d-flex align-items-center gap-3 py-2 mb-0">
       <span>
         Sign in to explore the full demo — Mirth Feed, Claims, Trace Logs, and Webhooks.
-        Credentials: <code>demo</code> / <code>demo1234</code>
       </span>
-      <a href="{% url 'login' %}" class="btn btn-sm btn-primary ms-auto text-nowrap">Sign In</a>
+      <a href="{% url 'login' %}" class="btn btn-sm btn-primary ms-auto text-nowrap">Access Demo Account</a>
     </div>
   </div>
 </div>

@@ -3,6 +3,22 @@
 {% block title %}Mirth Live Feed – Recent HL7 Messages{% endblock %}
 
 {% block content %}
+
+{% if request.GET.tour %}
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
+  <div class="fs-4">①</div>
+  <div>
+    <strong>Guided Demo — Step 1 of 4: HL7 Ingestion</strong><br>
+    These are live HL7 messages received from simulated Mirth Connect channels in the last 72 hours.
+    Each row shows the message type (ADT/ORU/ORM/SIU), validation result, and processing status.
+    <br><strong>Try:</strong> Click any row to see the raw HL7, FHIR transform, and X12 output.
+    Then continue to
+    <a href="{% url 'trace-logs-page' %}?tour=1" class="alert-link">Step 2 → Trace Logs</a>.
+  </div>
+  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="row mb-4">
   <div class="col-lg-8">
     <h1 class="mb-2">Mirth Live Feed</h1>

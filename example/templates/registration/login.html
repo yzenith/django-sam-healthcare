@@ -5,55 +5,76 @@
 {% block content %}
 <div class="row justify-content-center mt-5">
   <div class="col-md-5 col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body p-4">
-        <h4 class="card-title mb-1">Sign In</h4>
-        <p class="text-muted small mb-4">
-          Demo credentials: <code>demo</code> / <code>demo1234</code>
-        </p>
 
-        {% if form.errors %}
-        <div class="alert alert-danger py-2 small">
-          Invalid username or password.
+    <!-- Demo access card -->
+    <div class="card border-primary shadow mb-3">
+      <div class="card-body p-4 text-center">
+        <div class="mb-2">
+          <span class="badge bg-primary-subtle text-primary px-3 py-2 fs-6">Demo Environment</span>
         </div>
-        {% endif %}
-
-        <form method="post">
+        <p class="text-muted small mb-3">
+          Explore the full system — HL7 ingestion, FHIR API, claims reconciliation, trace logs, and more.
+        </p>
+        <form method="post" id="demo-form">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ next }}">
-
-          <div class="mb-3">
-            <label for="id_username" class="form-label">Username</label>
-            <input
-              type="text"
-              name="username"
-              id="id_username"
-              class="form-control"
-              autofocus
-              autocomplete="username"
-            >
-          </div>
-
-          <div class="mb-3">
-            <label for="id_password" class="form-label">Password</label>
-            <input
-              type="password"
-              name="password"
-              id="id_password"
-              class="form-control"
-              autocomplete="current-password"
-            >
-          </div>
-
-          <button type="submit" class="btn btn-primary w-100">Sign In</button>
+          <input type="hidden" name="username" value="demo">
+          <input type="hidden" name="password" value="demo1234">
+          <button type="submit" class="btn btn-primary w-100 btn-lg">
+            <span id="demo-btn-text">Access Demo Account</span>
+            <span id="demo-btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+          </button>
         </form>
       </div>
     </div>
 
+    <!-- Collapsible manual sign-in -->
+    <div class="text-center mb-2">
+      <a class="text-muted small" data-bs-toggle="collapse" href="#manualLogin" role="button">
+        Sign in with a different account
+      </a>
+    </div>
+
+    <div class="collapse" id="manualLogin">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="mb-3">Sign In</h6>
+
+          {% if form.errors %}
+          <div class="alert alert-danger py-2 small">
+            Invalid username or password.
+          </div>
+          {% endif %}
+
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="mb-3">
+              <label for="id_username" class="form-label">Username</label>
+              <input type="text" name="username" id="id_username" class="form-control"
+                     autofocus autocomplete="username">
+            </div>
+            <div class="mb-3">
+              <label for="id_password" class="form-label">Password</label>
+              <input type="password" name="password" id="id_password" class="form-control"
+                     autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn-secondary w-100">Sign In</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <p class="text-center text-muted small mt-3">
-      Public pages (HL7 Playground, API Docs) do not require sign-in.<br>
-      Mirth Feed, Claims, and Patient Import require authentication.
+      Public pages (HL7 Playground, API Docs) do not require sign-in.
     </p>
   </div>
 </div>
+
+<script>
+document.getElementById('demo-form').addEventListener('submit', function () {
+  document.getElementById('demo-btn-text').textContent = 'Signing in…';
+  document.getElementById('demo-btn-spinner').classList.remove('d-none');
+});
+</script>
 {% endblock %}

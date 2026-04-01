@@ -871,7 +871,8 @@ def seed_demo_data_view(request):
     if request.method != "POST":
         return redirect("home")
 
-    clear = request.POST.get("clear") == "1"
+    # Always clear and re-seed so timestamps stay current
+    clear = True
     result = seed_demo_data(clear_existing=clear)
 
     if result.get("skipped"):
@@ -883,6 +884,34 @@ def seed_demo_data_view(request):
             f"{result['claims']} claims, {result['webhooks']} webhooks.",
         )
     return redirect("home")
+
+
+def guided_demo(request):
+    """
+    POST /guided-demo/
+    Seeds fresh demo data (always clears first so timestamps are current),
+    auto-logs the user in as the demo account if not authenticated,
+    then redirects to the Mirth messages page — step 1 of the guided tour.
+    The tour steps are embedded in the destination pages via a ?tour=1 param.
+    """
+    from django.contrib.auth import authenticate, login as auth_login
+    from django.contrib import messages
+    from example.seed_demo import seed_demo_data
+
+    # Seed fresh data
+    seed_demo_data(clear_existing=True)
+
+    # Auto-login as demo user if not already authenticated
+    if not request.user.is_authenticated:
+        user = authenticate(request, username="demo", password="demo1234")
+        if user:
+            auth_login(request, user)
+
+    messages.success(
+        request,
+        "Guided demo started — follow the tour steps highlighted on each page.",
+    )
+    return redirect("/mirth/messages/?tour=1")
 
 
 def integration_specs(request):

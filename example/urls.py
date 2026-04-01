@@ -7,7 +7,7 @@ from example.views import (
     mirth_message_detail, mirth_messages, home,
     patient_import_detail, patient_import_page, patient_import_rejects_csv,
     health, claim_reconciliation_report, webhook_delivery_log,
-    seed_demo_data_view, retry_webhook, integration_specs,
+    seed_demo_data_view, retry_webhook, integration_specs, guided_demo,
 )
 from example.fhir_views import (
     fhir_metadata,
@@ -47,6 +47,7 @@ urlpatterns = [
 
     # ── Seed demo data ───────────────────────────────────────────────────────
     path("seed-demo-data/", seed_demo_data_view, name="seed-demo-data"),
+    path("guided-demo/", guided_demo, name="guided-demo"),
 
     # ── FHIR R4 API explorer page ────────────────────────────────────────────
     path("fhir-explorer/", TemplateView.as_view(template_name="fhir_api.html"), name="fhir-explorer"),

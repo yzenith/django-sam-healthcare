@@ -2,6 +2,21 @@
 {% block title %}Trace Logs – Healthcare Integration Demo{% endblock %}
 
 {% block content %}
+
+{% if request.GET.tour %}
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
+  <div class="fs-4">②</div>
+  <div>
+    <strong>Guided Demo — Step 2 of 4: Trace Logs</strong><br>
+    Every inbound message writes a TraceLog entry with step-by-step processing status (AUTH → VALIDATE → TRANSFORM).
+    Filter by <em>Has Errors</em> or <em>Review Required</em> to find failure cases.
+    <br><strong>Try:</strong> Click a failed trace to see the root cause. Then continue to
+    <a href="{% url 'dq-dashboard' %}?tour=1" class="alert-link">Step 3 → Data Quality Monitor</a>.
+  </div>
+  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
   <div>
     <h1 class="h4 mb-0">Trace Logs</h1>

@@ -4,6 +4,20 @@
 
 {% block content %}
 
+{% if request.GET.tour %}
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
+  <div class="fs-4">③</div>
+  <div>
+    <strong>Guided Demo — Step 3 of 4: Data Quality Monitor</strong><br>
+    This is the operations dashboard — success rate, average latency, and quality flags across all pipelines.
+    In production, this is what on-call engineers watch to detect degradation before it becomes an incident.
+    <br><strong>Try:</strong> Note the success rate and flag counts. Then continue to
+    <a href="{% url 'claim-reconciliation' %}?tour=1" class="alert-link">Step 4 → Claim Reconciliation</a>.
+  </div>
+  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <!-- ── Page header ─────────────────────────────────────────────────────────── -->
 <div class="row mb-4 align-items-end">
   <div class="col-lg-8">

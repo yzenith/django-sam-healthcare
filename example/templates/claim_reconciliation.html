@@ -3,6 +3,23 @@
 {% block title %}Claim Reconciliation Report{% endblock %}
 
 {% block content %}
+
+{% if request.GET.tour %}
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
+  <div class="fs-4">④</div>
+  <div>
+    <strong>Guided Demo — Step 4 of 4: Claim Reconciliation</strong><br>
+    Claims flow from ADT A03 (discharge) → DFT P03 (charges) → X12 837 (submission) → X12 835 (remittance).
+    This view shows billed vs paid amounts, patient responsibility, and outstanding balances.
+    Denials and underpayments are flagged for follow-up — this is the end of the revenue cycle pipeline.
+    <br><strong>You've completed the guided demo.</strong>
+    Explore the rest of the system using the navigation above, or
+    <a href="{% url 'home' %}" class="alert-link">return to the home page</a>.
+  </div>
+  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Claim Reconciliation Report</h2>
   <a href="{% url 'mirth-messages' %}" class="btn btn-sm btn-outline-secondary">← Mirth Feed</a>

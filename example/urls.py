@@ -94,6 +94,7 @@ urlpatterns = [
     path("prior-auth/",          prior_auth_page,         name="prior-auth"),
 
     # ── Static pages ─────────────────────────────────────────────────────────
+    path("interview-guide/", TemplateView.as_view(template_name="interview_guide.html"), name="interview-guide"),
     path("overview/", TemplateView.as_view(template_name="overview.html"), name="overview"),
     path("integrations/", integration_specs, name="integration-specs"),
     path("error-catalog/", TemplateView.as_view(template_name="error_catalog.html"), name="error-catalog"),

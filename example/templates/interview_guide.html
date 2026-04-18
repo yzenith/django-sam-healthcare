@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+{% block title %}Interview Guide — How the Data Flows{% endblock %}
+
+{% block content %}
+<!-- Mermaid.js -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: "default", fontSize: 14 });</script>
+
+<style>
+  .diagram-card   { background:#fff; border:1px solid #dee2e6; border-radius:.5rem; padding:1.5rem; margin-bottom:2rem; }
+  .talking-points { background:#f0f7ff; border-left:4px solid #0d6efd; padding:1rem 1.25rem; border-radius:0 .4rem .4rem 0; margin-top:1rem; }
+  .talking-points li { margin-bottom:.35rem; }
+  .term           { background:#fff3cd; padding:1px 5px; border-radius:3px; font-family:monospace; font-size:.9em; }
+  .section-anchor { padding-top:5rem; margin-top:-4rem; }
+  .toc-link       { display:block; padding:.2rem 0; color:#0d6efd; text-decoration:none; }
+  .toc-link:hover { text-decoration:underline; }
+  .badge-jd       { font-size:.75em; vertical-align:middle; }
+  pre.code-block  { background:#1e1e1e; color:#d4d4d4; border-radius:.4rem; padding:1rem; font-size:.82em; overflow-x:auto; }
+  .mermaid        { text-align:center; }
+  h2              { border-bottom:2px solid #e9ecef; padding-bottom:.4rem; margin-bottom:1.25rem; }
+</style>
+
+<div class="container-fluid px-4 pb-5">
+  <div class="row">
+
+    <!-- ── Sidebar TOC ─────────────────────────────────────────────────── -->
+    <div class="col-lg-2 d-none d-lg-block">
+      <div class="sticky-top pt-4" style="top:1rem;">
+        <div class="small fw-bold text-muted mb-2 text-uppercase">Sections</div>
+        <a class="toc-link" href="#arch">1. Architecture</a>
+        <a class="toc-link" href="#hl7-fhir">2. HL7 → FHIR Pipeline</a>
+        <a class="toc-link" href="#smart">3. SMART on FHIR</a>
+        <a class="toc-link" href="#bulk">4. Bulk FHIR</a>
+        <a class="toc-link" href="#x12">5. X12 Claims</a>
+        <a class="toc-link" href="#davinci">6. Da Vinci Prior Auth</a>
+        <a class="toc-link" href="#trace">7. Traceability</a>
+        <a class="toc-link" href="#cms">8. CMS Compliance</a>
+        <a class="toc-link" href="#cheatsheet">Cheat Sheet</a>
+      </div>
+    </div>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <div class="col-lg-10">
+
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <h1 class="mb-0">Interview Guide</h1>
+        <span class="badge bg-warning text-dark">For your eyes only — prep material</span>
+      </div>
+      <p class="text-muted mb-4">How the data flows through this system — one diagram per topic, with talking points for each.</p>
+
+      <!-- ================================================================
+           1. ARCHITECTURE
+      ================================================================ -->
+      <div class="section-anchor" id="arch"></div>
+      <h2>1. Overall System Architecture</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+graph TB
+    subgraph "External Sources"
+        MIRTH["Mirth Connect\n(HL7 v2 feed)"]
+        CSV["CSV Files\n(Patient import)"]
+        SMART_APP["SMART App / EHR\n(OAuth2 client)"]
+    end
+
+    subgraph "Django Integration Platform"
+        JWT_AUTH["JWT Auth\n(Bearer token)"]
+        HL7_PARSE["HL7 Parser\nMSH · PID · PV1 · OBX"]
+        FHIR_MAP["FHIR Mapper\nPatient · Encounter · Obs"]
+        X12_GEN["X12 Generator\n837P claim · 835 ERA"]
+        TRACE["Trace Logger\nTrace ID · Steps · ACK"]
+        OAUTH2["OAuth2 Server\nSMART on FHIR"]
+        BULK_EXP["Bulk Export\n$export NDJSON"]
+        DAVINCI["Da Vinci\nCRD · PAS · DTR"]
+    end
+
+    subgraph "Storage (PostgreSQL / Neon)"
+        DB[("HL7MessageLog\nClaimRecord\nOAuthToken\nBulkExportJob")]
+    end
+
+    subgraph "Downstream / Output"
+        FHIR_API["FHIR R4 REST API\n/fhir/Patient · Encounter · DiagnosticReport"]
+        WEBHOOKS["Webhook Delivery\n(FHIR push to EHR)"]
+        PAYER["Payer Systems\n(Prior Auth response)"]
+    end
+
+    MIRTH -->|"POST · Bearer JWT"| JWT_AUTH
+    JWT_AUTH --> HL7_PARSE
+    HL7_PARSE --> FHIR_MAP
+    FHIR_MAP --> X12_GEN
+    FHIR_MAP --> TRACE
+    X12_GEN --> TRACE
+    CSV --> HL7_PARSE
+    TRACE --> DB
+    FHIR_MAP --> DB
+
+    SMART_APP -->|"Auth Code + PKCE"| OAUTH2
+    OAUTH2 --> FHIR_API
+    FHIR_API --> BULK_EXP
+    BULK_EXP --> DB
+    FHIR_MAP --> WEBHOOKS
+    FHIR_API --> DAVINCI
+    DAVINCI --> PAYER
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li>The system has three inbound lanes: <span class="term">Mirth Connect</span> (HL7 v2), <span class="term">CSV batch import</span>, and <span class="term">SMART app OAuth2</span>.</li>
+            <li>Every inbound payload — regardless of source — passes through the same trace logging layer, producing a <span class="term">Trace ID</span> and step-by-step audit record.</li>
+            <li>The FHIR mapper is stateless: it re-transforms from raw HL7 on demand, so the DB stays lean and transform logic evolves independently.</li>
+            <li>Downstream delivery happens two ways: synchronous FHIR REST API, and asynchronous webhook push to registered EHR endpoints.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           2. HL7 → FHIR PIPELINE
+      ================================================================ -->
+      <div class="section-anchor" id="hl7-fhir"></div>
+      <h2>2. HL7 v2 → FHIR R4 Transformation Pipeline</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant MC as Mirth Connect
+    participant API as Django API<br/>/api/mirth/hl7/
+    participant PAR as HL7 Parser<br/>hl7_utils.py
+    participant MAP as FHIR Mapper
+    participant X12 as X12 Generator
+    participant DB as PostgreSQL
+
+    MC->>API: POST raw HL7 (Authorization: Bearer JWT)
+    API->>API: validate_mirth_jwt() — verify iss, aud, alg
+    alt JWT invalid / missing
+        API-->>MC: 401 + HL7 ACK AE (Application Error)
+    end
+    API->>PAR: parse MSH → message_type, trigger_event
+    PAR->>PAR: route by type<br/>ADT→A01  ORU→R01  ORM→O01  MDM→T01  SIU→S12
+    PAR->>MAP: extract PID → FHIR Patient resource
+    PAR->>MAP: extract PV1 → FHIR Encounter resource
+    MAP->>X12: fhir_to_837_claim(patient, encounter)
+    X12->>X12: generate_835_from_837() — simulate payer ERA
+    X12->>X12: reconcile_837_835() — billed vs paid
+    API->>DB: INSERT HL7MessageLog (steps[], trace_id, processing_status)
+    API->>DB: INSERT ClaimRecord (x12_837, x12_835, balance_due)
+    API-->>MC: 200 + HL7 ACK AA (Application Accept)
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li>The entry point is a JWT-authenticated webhook — every Mirth Connect channel sends a <span class="term">Bearer token</span> with issuer and audience claims validated server-side.</li>
+            <li>Routing is done by reading <span class="term">MSH-9</span> (message type + trigger event). Each type has its own transform function: <span class="term">ADT</span> produces Patient + Encounter, <span class="term">ORU</span> produces DiagnosticReport + Observations.</li>
+            <li>The ACK response follows the HL7 v2 protocol: <span class="term">AA</span> = Accept, <span class="term">AE</span> = Error, <span class="term">AR</span> = Reject. Mirth checks this to decide whether to retry.</li>
+            <li>Claim generation happens inline — <span class="term">837P</span> (professional claim) is generated from the FHIR resources, then a simulated <span class="term">835 ERA</span> is created for reconciliation demo purposes.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Field mapping reference -->
+      <div class="diagram-card">
+        <h6 class="fw-semibold mb-3">HL7 Segment → FHIR Field Mapping</h6>
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-sm table-bordered small">
+              <thead class="table-light"><tr><th>HL7 Segment · Field</th><th>FHIR Resource · Element</th></tr></thead>
+              <tbody>
+                <tr><td><code>MSH-9</code> message type</td><td>routing only (not stored in FHIR)</td></tr>
+                <tr><td><code>PID-3</code> patient ID list</td><td><code>Patient.identifier[].value</code> (MRN)</td></tr>
+                <tr><td><code>PID-5</code> patient name</td><td><code>Patient.name[].family / given</code></td></tr>
+                <tr><td><code>PID-7</code> date of birth</td><td><code>Patient.birthDate</code></td></tr>
+                <tr><td><code>PID-8</code> sex</td><td><code>Patient.gender</code></td></tr>
+                <tr><td><code>PID-11</code> address</td><td><code>Patient.address[]</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <table class="table table-sm table-bordered small">
+              <thead class="table-light"><tr><th>HL7 Segment · Field</th><th>FHIR Resource · Element</th></tr></thead>
+              <tbody>
+                <tr><td><code>PV1-2</code> patient class</td><td><code>Encounter.class</code> (IMP/AMB/EMER)</td></tr>
+                <tr><td><code>PV1-3</code> assigned location</td><td><code>Encounter.location[].location</code></td></tr>
+                <tr><td><code>PV1-7</code> attending doctor</td><td><code>Encounter.participant[]</code></td></tr>
+                <tr><td><code>PV1-44</code> admit date/time</td><td><code>Encounter.period.start</code></td></tr>
+                <tr><td><code>OBX-3</code> observation ID</td><td><code>Observation.code.coding[]</code> (LOINC)</td></tr>
+                <tr><td><code>OBX-5</code> observation value</td><td><code>Observation.valueQuantity</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           3. SMART ON FHIR
+      ================================================================ -->
+      <div class="section-anchor" id="smart"></div>
+      <h2>3. SMART on FHIR — OAuth2 Authorization Code + PKCE</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant APP as SMART App<br/>(e.g. patient portal)
+    participant WK as /.well-known/<br/>smart-configuration
+    participant AZ as /oauth2/authorize<br/>(consent screen)
+    participant TK as /oauth2/token
+    participant IX as /oauth2/introspect
+    participant FK as /fhir/Patient/
+
+    APP->>WK: GET /.well-known/smart-configuration
+    WK-->>APP: JSON — authorization_endpoint, token_endpoint,<br/>scopes_supported, capabilities
+
+    Note over APP: Generate PKCE pair<br/>code_verifier = random(43 chars)<br/>code_challenge = BASE64URL(SHA256(verifier))
+
+    APP->>AZ: GET /oauth2/authorize<br/>?client_id=XYZ&scope=launch/patient+patient/*.read<br/>&code_challenge=ABC&code_challenge_method=S256
+    AZ->>AZ: validate client · check redirect_uri<br/>show consent screen to logged-in user
+    AZ-->>APP: 302 → redirect_uri?code=AUTH_CODE&state=xyz
+
+    APP->>TK: POST /oauth2/token<br/>grant_type=authorization_code<br/>code=AUTH_CODE · code_verifier=RAW_VERIFIER
+    TK->>TK: verify PKCE: SHA256(verifier) == challenge
+    TK-->>APP: 200 JSON<br/>{access_token (JWT), token_type: Bearer,<br/>patient: "10001", expires_in: 3600,<br/>refresh_token: XYZ}
+
+    APP->>FK: GET /fhir/Patient/10001<br/>Authorization: Bearer &lt;JWT&gt;
+    FK-->>APP: FHIR Patient resource
+
+    Note over APP,IX: Resource server validates token
+    APP->>IX: POST /oauth2/introspect · token=JWT
+    IX-->>APP: {active:true, scope:"patient/*.read", patient:"10001"}
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li><span class="term">SMART on FHIR</span> is the OAuth2 profile for FHIR. ONC requires every certified EHR to expose <span class="term">/.well-known/smart-configuration</span> so third-party apps can discover the authorization server without hardcoding URLs.</li>
+            <li><span class="term">PKCE (Proof Key for Code Exchange)</span> prevents authorization code interception attacks. The app generates a random <span class="term">code_verifier</span>, hashes it with SHA-256 to get the <span class="term">code_challenge</span>, sends only the hash to the server, then proves ownership at token exchange time by sending the original verifier.</li>
+            <li>The <span class="term">patient</span> context field in the token response is unique to SMART — it tells the app which patient the user authorized access for, without needing a separate API call.</li>
+            <li><span class="term">Token introspection (RFC 7662)</span> lets resource servers validate tokens without knowing the signing secret — they just POST the token to the introspect endpoint and get back active/inactive + metadata.</li>
+            <li>The <span class="term">scope vocabulary</span> uses a permission model: <code>patient/Patient.read</code> means read-only access to Patient resources for the authorized patient context; <code>system/*.read</code> is server-to-server access to all resources.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Scope table -->
+      <div class="diagram-card">
+        <h6 class="fw-semibold mb-3">SMART Scope Reference</h6>
+        <table class="table table-sm table-bordered small">
+          <thead class="table-light">
+            <tr><th>Scope</th><th>Grant Type</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>launch/patient</code></td><td>EHR Launch</td><td>Request patient context from the EHR at launch time</td></tr>
+            <tr><td><code>patient/Patient.read</code></td><td>Auth Code</td><td>Read the authorized patient's FHIR Patient resource</td></tr>
+            <tr><td><code>patient/*.read</code></td><td>Auth Code</td><td>Read all FHIR resources for the authorized patient</td></tr>
+            <tr><td><code>user/*.read</code></td><td>Auth Code</td><td>Read all FHIR resources the logged-in practitioner can access</td></tr>
+            <tr><td><code>system/*.read</code></td><td>Client Credentials</td><td>System-to-system: read all resources (no user context)</td></tr>
+            <tr><td><code>offline_access</code></td><td>Auth Code</td><td>Issue a refresh token so app can maintain access</td></tr>
+            <tr><td><code>openid profile</code></td><td>Auth Code</td><td>OpenID Connect — identity token for the logged-in user</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ================================================================
+           4. BULK FHIR
+      ================================================================ -->
+      <div class="section-anchor" id="bulk"></div>
+      <h2>4. Bulk FHIR Patient/$export (Async Polling Pattern)</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant C as Client<br/>(payer / analytics)
+    participant EX as GET /fhir/Patient/$export
+    participant ST as GET /fhir/bulkstatus/&lt;job_id&gt;/
+    participant DL as GET /fhir/bulkfiles/&lt;job_id&gt;/Patient.ndjson
+
+    C->>EX: GET /fhir/Patient/$export<br/>?_type=Patient,Encounter&_since=2024-01-01
+    Note over EX: Process HL7 records → build NDJSON<br/>de-duplicate patients by MRN
+    EX-->>C: 202 Accepted<br/>Content-Location: /fhir/bulkstatus/&lt;job_id&gt;
+
+    loop Poll until complete
+        C->>ST: GET /fhir/bulkstatus/&lt;job_id&gt;
+        alt Still processing
+            ST-->>C: 202 + X-Progress: processing
+        else Complete
+            ST-->>C: 200 JSON manifest<br/>{transactionTime, output:[{type,url,count}]}
+        end
+    end
+
+    C->>DL: GET /fhir/bulkfiles/&lt;job_id&gt;/Patient.ndjson
+    DL-->>C: application/fhir+ndjson<br/>{"resourceType":"Patient","id":"10001",...}<br/>{"resourceType":"Patient","id":"10002",...}
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li><span class="term">Bulk FHIR (FHIR Bulk Data IG v2.0)</span> is the standard for exporting large datasets. CMS mandates it for patient access APIs under <span class="term">CMS-9115-F</span>.</li>
+            <li>The <span class="term">async polling pattern</span> is required because exports can take minutes/hours for large datasets. The server returns <span class="term">202 Accepted</span> immediately with a <span class="term">Content-Location</span> header pointing to the status endpoint.</li>
+            <li><span class="term">NDJSON (Newline-Delimited JSON)</span> is one FHIR resource per line — more efficient for streaming than a FHIR Bundle because processors don't need to load the whole file into memory.</li>
+            <li>The <span class="term">_since</span> parameter enables incremental exports — clients only pull records changed after their last sync, which is critical for payer data pipelines.</li>
+            <li>On this Vercel deployment the export processes synchronously (serverless — no background workers). In production you'd use <span class="term">Celery + SQS</span> or <span class="term">Azure Batch</span> for large-scale async processing.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           5. X12 CLAIMS
+      ================================================================ -->
+      <div class="section-anchor" id="x12"></div>
+      <h2>5. X12 Claim Lifecycle — 837P → Payer → 835 ERA</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+graph LR
+    subgraph "Inbound (HL7)"
+        ADT["ADT A01\n(Admission)"] --> PID["PID segment\n(patient identity)"]
+        ADT --> PV1["PV1 segment\n(encounter / location)"]
+    end
+
+    subgraph "Claim Generation"
+        PID --> CLAIM["837P Builder\nfhir_to_837_claim()"]
+        PV1 --> CLAIM
+        CLAIM --> NM1["NM1 — Provider\n& Subscriber loops"]
+        CLAIM --> CLM["CLM segment\n(claim header)"]
+        CLAIM --> SVC["SVC / SV1\n(service lines)"]
+    end
+
+    subgraph "Payer Simulation"
+        NM1 & CLM & SVC --> X837["X12 837P\n(EDI transaction)"]
+        X837 -->|"simulate payer\noutcome"| X835["X12 835 ERA\n(payment advice)"]
+        X835 --> RECON["Reconciliation\nbilled vs paid\nbalance_due calc"]
+    end
+
+    subgraph "Storage & Reporting"
+        RECON --> CR["ClaimRecord\n(PostgreSQL)"]
+        CR --> UI["Claim Reconciliation\nReport /mirth/claims/reconciliation/"]
+    end
+
+    style X837 fill:#cfe2ff
+    style X835 fill:#d1e7dd
+    style RECON fill:#fff3cd
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li>An <span class="term">837P</span> (professional claim) is the EDI transaction a provider sends to a payer. Key segments: <span class="term">NM1</span> (names), <span class="term">CLM</span> (claim header with total charge), <span class="term">SV1</span> (service line with procedure code and fee).</li>
+            <li>The <span class="term">835 ERA (Electronic Remittance Advice)</span> is the payer's response. It maps back to claim lines and explains any payment adjustments using <span class="term">CARC/RARC codes</span> (claim/remittance adjustment reason codes).</li>
+            <li><span class="term">Reconciliation</span> compares the billed amount on the 837 against the paid amount on the 835 and computes patient responsibility and balance due. This is a daily operational task for billing teams.</li>
+            <li>In production the 835 arrives via a clearinghouse (e.g. Change Healthcare, Availity). This demo simulates the payer response to show the full lifecycle without an actual payer connection.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           6. DA VINCI PRIOR AUTH
+      ================================================================ -->
+      <div class="section-anchor" id="davinci"></div>
+      <h2>6. Da Vinci Prior Authorization — CRD + PAS</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant DOC as Provider EHR<br/>(ordering physician)
+    participant CRD as /api/prior-auth/crd/<br/>(CDS Hooks service)
+    participant PAS as /api/prior-auth/pas/<br/>(FHIR submission)
+    participant DTR as DTR<br/>(doc templates)
+
+    Note over DOC: Provider selects order: MRI knee (73721)
+
+    DOC->>CRD: POST order-select hook<br/>{draftOrders: {ServiceRequest code: "73721"}}
+    CRD->>CRD: lookup COVERAGE_RULES["73721"]
+    CRD-->>DOC: CDS Card — warning<br/>"Prior Authorization Required"<br/>documentation_needed: [clinical notes, X-ray, ...]
+
+    Note over DOC,DTR: Provider collects required documentation
+
+    DOC->>PAS: POST /api/prior-auth/pas/<br/>{patient_id, service_code: "73721",<br/>diagnosis_code: "M17.11",<br/>clinical_notes: "...osteoarthritis..."}
+    PAS->>PAS: evaluate medical necessity criteria
+    alt Approved
+        PAS-->>DOC: ClaimResponse Bundle<br/>{outcome: "approved", preAuthRef: "PA-XXXX",<br/>valid 90 days}
+    else Pended
+        PAS-->>DOC: ClaimResponse Bundle<br/>{outcome: "pended",<br/>disposition: "additional info required"}
+    else Denied
+        PAS-->>DOC: ClaimResponse Bundle<br/>{outcome: "denied",<br/>disposition: "criteria not met"}
+    end
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li><span class="term">Da Vinci</span> is an HL7 FHIR Accelerator project. It defines Implementation Guides for payer-provider interoperability. <span class="term">CMS-0057-F (2026)</span> mandates payers implement the Da Vinci IGs.</li>
+            <li><span class="term">CRD (Coverage Requirements Discovery)</span> uses the <span class="term">CDS Hooks</span> standard — a REST protocol for EHRs to call decision support services at clinical workflow points (e.g. order-select, order-sign).</li>
+            <li><span class="term">PAS (Prior Authorization Support)</span> submits the actual PA request as a FHIR <span class="term">Claim</span> resource bundle, replacing fax-based and portal-based workflows.</li>
+            <li><span class="term">DTR (Documentation Templates and Rules)</span> (not yet implemented here) auto-populates questionnaires from patient EHR data, reducing manual documentation burden on providers.</li>
+            <li>The payer responds with a FHIR <span class="term">ClaimResponse</span> resource — <code>approved</code> includes a <span class="term">preAuthRef</span> number valid for a defined period; <code>pended</code> means more info is needed; <code>denied</code> includes the reason.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           7. TRACEABILITY
+      ================================================================ -->
+      <div class="section-anchor" id="trace"></div>
+      <h2>7. Traceability & Audit Logging</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+graph TB
+    subgraph "Every inbound payload"
+        IN["Inbound message\n(HL7 / CSV / JSON)"] --> TID["Assign Trace ID\nuuid hex — 32 chars"]
+    end
+
+    subgraph "TraceLog record"
+        TID --> LOG["TraceLog\n• trace_id\n• input_type\n• raw_payload\n• processing_status"]
+    end
+
+    subgraph "TraceStep records (per processing step)"
+        LOG --> S1["Step 1: AUTH\nstatus: OK / ERROR\n{token_claims}"]
+        LOG --> S2["Step 2: PARSE\nstatus: OK / WARN\n{message_type, segments_found}"]
+        LOG --> S3["Step 3: VALIDATE\nstatus: OK / WARN / ERROR\n{missing_fields, assumptions}"]
+        LOG --> S4["Step 4: TRANSFORM\nstatus: OK / ERROR\n{fhir_resources_created}"]
+        LOG --> S5["Step 5: ACK\nstatus: OK\n{ack_code: AA/AE/AR}"]
+    end
+
+    subgraph "Operational use"
+        S1 & S2 & S3 & S4 & S5 --> UI2["Trace Log UI\n/trace/logs/\nfilter by status / type / error"]
+        UI2 --> INV["Post-incident investigation\n'What happened to message X?'"]
+    end
+
+    style S3 fill:#fff3cd
+    style INV fill:#d1e7dd
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li>Every payload — including auth failures — gets a <span class="term">Trace ID</span> before any processing begins. This ensures that even failed messages are recoverable for investigation.</li>
+            <li>Steps are recorded as discrete records with <span class="term">OK / WARN / ERROR</span> status. WARN means the system made a controlled assumption (e.g. missing non-critical field) but continued processing. This distinction is critical operationally — it separates noise from real failures.</li>
+            <li><span class="term">Error categories</span> (VALIDATION, MAPPING, AUTH, FACILITY_VARIANCE, DOWNSTREAM) let operations teams route failures to the right team without reading log details.</li>
+            <li>The trace log answers the most common post-incident question: "We sent message X on Tuesday — did you receive it, and what happened to it?" Without a trace, this takes hours. With it, it takes seconds.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           8. CMS COMPLIANCE
+      ================================================================ -->
+      <div class="section-anchor" id="cms"></div>
+      <h2>8. CMS Compliance Landscape</h2>
+      <div class="diagram-card">
+        <pre class="mermaid">
+graph LR
+    subgraph "CMS-9115-F — Interoperability Rule (2021)"
+        A1["Patient Access API\nFHIR R4 + SMART on FHIR\n→ implemented: FHIR endpoints\n+ OAuth2 server"]
+        A2["Provider Directory API\nFHIR R4 Endpoint"]
+        A3["Payer-to-Payer Data Exchange\nBulk FHIR\n→ implemented: Patient/$export"]
+    end
+
+    subgraph "CMS-0057-F — Prior Auth Rule (2026)"
+        B1["Electronic PA via FHIR\nDa Vinci PAS\n→ implemented: /api/prior-auth/pas/"]
+        B2["PA Decision on EOB\nClaims-based reporting"]
+        B3["Reason Codes in Denial\nStructured FHIR ClaimResponse\n→ implemented: outcome + disposition"]
+    end
+
+    subgraph "US Core IG (ONC HTI-1)"
+        C1["Must Support elements\nPatient · Encounter · DiagnosticReport"]
+        C2["USCDI v3 data classes\nDemographics · Problems · Meds"]
+    end
+
+    A1 & A3 -->|"requires"| C1
+    B1 -->|"uses"| C1
+        </pre>
+
+        <div class="talking-points">
+          <strong>What to say:</strong>
+          <ul>
+            <li><span class="term">CMS-9115-F (2021)</span> requires Medicare/Medicaid payers to expose a <span class="term">Patient Access API</span> (FHIR R4 + SMART on FHIR) so patients can access their claims and clinical data via third-party apps. This is why SMART on FHIR is the most-requested capability in payer interoperability roles.</li>
+            <li><span class="term">CMS-0057-F (2026)</span> mandates <span class="term">electronic prior authorization</span> via FHIR — payers must implement Da Vinci CRD, PAS, and DTR, and must return PA decisions within 72 hours (1 hour for urgent). It also requires PA decisions to appear on Explanation of Benefits claims.</li>
+            <li><span class="term">US Core IG</span> defines the minimum FHIR profile requirements for ONC-certified EHRs. It specifies which elements must be supported on each resource type — these are the "must support" flags you'd configure in a production FHIR server like HAPI.</li>
+            <li>An <span class="term">interoperability roadmap</span> for a payer would typically sequence: Patient Access API (done) → Payer-to-Payer exchange (Bulk FHIR) → Provider Directory → Electronic PA (Da Vinci).</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           CHEAT SHEET
+      ================================================================ -->
+      <div class="section-anchor" id="cheatsheet"></div>
+      <h2>Quick Reference Cheat Sheet</h2>
+      <div class="row g-3 mb-5">
+
+        <div class="col-md-4">
+          <div class="card h-100 border-primary">
+            <div class="card-header bg-primary text-white fw-semibold">Standards Stack</div>
+            <div class="card-body small">
+              <table class="table table-sm mb-0">
+                <tr><td><strong>HL7 v2</strong></td><td>Legacy pipe-delimited messages (ADT, ORU, ORM, MDM, SIU)</td></tr>
+                <tr><td><strong>FHIR R4</strong></td><td>Modern REST + JSON resource model</td></tr>
+                <tr><td><strong>X12 5010</strong></td><td>EDI for claims (837) and remittance (835)</td></tr>
+                <tr><td><strong>C-CDA R2.1</strong></td><td>Clinical document XML (CCD, discharge summary)</td></tr>
+                <tr><td><strong>SMART</strong></td><td>OAuth2 profile for FHIR APIs</td></tr>
+                <tr><td><strong>CDS Hooks</strong></td><td>EHR workflow decision support protocol</td></tr>
+                <tr><td><strong>NDJSON</strong></td><td>Bulk data line-delimited JSON</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card h-100 border-success">
+            <div class="card-header bg-success text-white fw-semibold">Key Endpoints</div>
+            <div class="card-body small">
+              <table class="table table-sm mb-0">
+                <tr><td><code>/.well-known/smart-configuration</code></td><td>SMART discovery</td></tr>
+                <tr><td><code>/.well-known/jwks.json</code></td><td>Key set</td></tr>
+                <tr><td><code>/oauth2/authorize</code></td><td>Consent + code</td></tr>
+                <tr><td><code>/oauth2/token</code></td><td>Token exchange</td></tr>
+                <tr><td><code>/oauth2/introspect</code></td><td>Token validation</td></tr>
+                <tr><td><code>/fhir/</code></td><td>CapabilityStatement</td></tr>
+                <tr><td><code>/fhir/Patient/$export</code></td><td>Bulk export</td></tr>
+                <tr><td><code>/api/prior-auth/crd/</code></td><td>Da Vinci CRD</td></tr>
+                <tr><td><code>/api/prior-auth/pas/</code></td><td>Da Vinci PAS</td></tr>
+                <tr><td><code>/api/mirth/hl7/</code></td><td>Mirth webhook (JWT)</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card h-100 border-warning">
+            <div class="card-header bg-warning fw-semibold">Interview Keywords</div>
+            <div class="card-body small">
+              <p class="mb-1"><strong>When asked about FHIR:</strong><br>
+              "FHIR R4 resources, US Core profiles, CapabilityStatement, Implementation Guides"</p>
+              <p class="mb-1"><strong>When asked about auth:</strong><br>
+              "SMART on FHIR, PKCE S256, authorization_code flow, patient context, token introspection"</p>
+              <p class="mb-1"><strong>When asked about CMS:</strong><br>
+              "CMS-9115-F Patient Access API, CMS-0057-F prior auth, Da Vinci CRD/PAS/DTR, US Core IG"</p>
+              <p class="mb-1"><strong>When asked about bulk:</strong><br>
+              "Bulk Data IG v2.0, $export operation, async 202 pattern, NDJSON, _since for incremental"</p>
+              <p class="mb-0"><strong>When asked about legacy:</strong><br>
+              "HL7 v2 ADT/ORU/ORM, MSH routing, PID/PV1/OBX segment mapping, ACK/NAK protocol, Mirth Connect"</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /row -->
+
+    </div><!-- /col main -->
+  </div><!-- /row -->
+</div><!-- /container -->
+{% endblock %}

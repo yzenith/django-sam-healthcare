@@ -168,6 +168,17 @@ def fhir_metadata(request):
                     ],
                 },
             ],
+            "operation": [
+                {
+                    "name": "export",
+                    "definition": "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/patient-export",
+                    "documentation": (
+                        "Bulk FHIR Patient export per FHIR Bulk Data IG v2.0. "
+                        "Returns 202 Accepted + Content-Location for async polling. "
+                        "Supports _since, _type, _outputFormat."
+                    ),
+                }
+            ],
         }],
     }
     return fhir_response(statement)

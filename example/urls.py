@@ -20,6 +20,16 @@ from example.smart_views import (
     prior_auth_page, smart_on_fhir_page,
     CRDHookView, PASSubmitView,
 )
+from example.oauth_views import (
+    jwks_json,
+    oauth_authorize, oauth_token,
+    oauth_introspect, oauth_revoke, oauth_register,
+)
+from example.bulk_views import (
+    bulk_export_patient,
+    bulk_export_status,
+    bulk_export_file,
+)
 
 urlpatterns = [
     # ── Home & health ────────────────────────────────────────────────────────
@@ -54,6 +64,8 @@ urlpatterns = [
 
     # ── FHIR R4 REST API ─────────────────────────────────────────────────────
     path("fhir/",                              fhir_metadata,          name="fhir-metadata"),
+    # $export must precede the <patient_id> wildcard route
+    path("fhir/Patient/$export",               bulk_export_patient,    name="bulk-export-patient"),
     path("fhir/Patient/",                      fhir_patient_search,    name="fhir-patient-search"),
     path("fhir/Patient/<str:patient_id>/",     fhir_patient_read,      name="fhir-patient-read"),
     path("fhir/Encounter/",                    fhir_encounter_search,  name="fhir-encounter-search"),
@@ -62,7 +74,19 @@ urlpatterns = [
 
     # ── SMART on FHIR ────────────────────────────────────────────────────────
     path(".well-known/smart-configuration",    smart_configuration,    name="smart-configuration"),
+    path(".well-known/jwks.json",              jwks_json,              name="jwks-json"),
     path("smart-on-fhir/",                     smart_on_fhir_page,     name="smart-on-fhir"),
+
+    # ── OAuth2 endpoints ─────────────────────────────────────────────────────
+    path("oauth2/authorize",   oauth_authorize,   name="oauth2-authorize"),
+    path("oauth2/token",       oauth_token,       name="oauth2-token"),
+    path("oauth2/introspect",  oauth_introspect,  name="oauth2-introspect"),
+    path("oauth2/revoke",      oauth_revoke,      name="oauth2-revoke"),
+    path("oauth2/register",    oauth_register,    name="oauth2-register"),
+
+    # ── Bulk FHIR status + file download ────────────────────────────────────
+    path("fhir/bulkstatus/<str:job_id>/",               bulk_export_status, name="bulk-export-status"),
+    path("fhir/bulkfiles/<str:job_id>/<str:filename>",  bulk_export_file,   name="bulk-export-file"),
 
     # ── Da Vinci Prior Auth ──────────────────────────────────────────────────
     path("api/prior-auth/crd/",  CRDHookView.as_view(),  name="prior-auth-crd"),

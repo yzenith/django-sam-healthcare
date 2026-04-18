@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 
 class HL7MessageLog(models.Model):
@@ -209,3 +210,83 @@ class WebhookDelivery(models.Model):
 
     def __str__(self):
         return f"Webhook {self.fhir_resource_type} [{self.status}] trace={self.trace_id}"
+
+
+# ---------------------------------------------------------------------------
+# SMART on FHIR OAuth2
+# ---------------------------------------------------------------------------
+
+class OAuthClient(models.Model):
+    client_id = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
+    client_secret_hash = models.CharField(max_length=255, blank=True)
+    client_name = models.CharField(max_length=200)
+    redirect_uris = models.JSONField(default=list)
+    scopes_allowed = models.JSONField(default=list)
+    grant_types = models.JSONField(default=list)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.client_name} ({self.client_id})"
+
+
+class OAuthAuthCode(models.Model):
+    code = models.CharField(max_length=128, unique=True)
+    client = models.ForeignKey(OAuthClient, on_delete=models.CASCADE)
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, null=True, blank=True)
+    redirect_uri = models.TextField()
+    scopes = models.JSONField(default=list)
+    patient_context = models.CharField(max_length=100, blank=True)
+    code_challenge = models.CharField(max_length=255, blank=True)
+    code_challenge_method = models.CharField(max_length=10, blank=True, default="S256")
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"AuthCode {self.code[:12]}… client={self.client.client_name}"
+
+
+class OAuthToken(models.Model):
+    access_token = models.TextField(unique=True)
+    client = models.ForeignKey(OAuthClient, on_delete=models.CASCADE)
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, null=True, blank=True)
+    scopes = models.JSONField(default=list)
+    patient_context = models.CharField(max_length=100, blank=True)
+    expires_at = models.DateTimeField()
+    refresh_token = models.CharField(max_length=255, blank=True, db_index=True)
+    refresh_expires_at = models.DateTimeField(null=True, blank=True)
+    revoked = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["revoked", "expires_at"])]
+
+    def __str__(self):
+        return f"Token client={self.client.client_name} revoked={self.revoked}"
+
+
+# ---------------------------------------------------------------------------
+# Bulk FHIR Export
+# ---------------------------------------------------------------------------
+
+class BulkExportJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING  = "pending",  "Pending"
+        RUNNING  = "running",  "Running"
+        COMPLETE = "complete", "Complete"
+        ERROR    = "error",    "Error"
+
+    job_id        = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    resource_type = models.CharField(max_length=100, default="Patient")
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.COMPLETE)
+    output_files  = models.JSONField(default=list)
+    ndjson_data   = models.JSONField(default=dict)
+    error         = models.TextField(blank=True)
+    since         = models.DateTimeField(null=True, blank=True)
+    requested_by  = models.CharField(max_length=100, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    completed_at  = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"BulkExport {self.job_id} [{self.status}] {self.resource_type}"

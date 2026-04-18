@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Authorize Application — {{ client.client_name }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 560px; margin-top: 3rem;">
+
+  <div class="card shadow-sm border-0">
+    <div class="card-header bg-primary text-white py-3">
+      <h5 class="mb-0">Authorization Request</h5>
+      <small class="opacity-75">SMART on FHIR — OAuth2 Authorization Code + PKCE</small>
+    </div>
+
+    <div class="card-body p-4">
+
+      <!-- App info -->
+      <div class="d-flex align-items-center mb-3">
+        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3"
+             style="width:48px;height:48px;font-size:1.4rem;flex-shrink:0;">
+          &#9633;
+        </div>
+        <div>
+          <div class="fw-bold fs-5">{{ client.client_name }}</div>
+          <div class="text-muted small">client_id: <code>{{ client.client_id }}</code></div>
+        </div>
+      </div>
+
+      <p class="text-secondary small mb-3">
+        This application is requesting access to your FHIR health data.
+        Review the requested permissions below and approve or deny.
+      </p>
+
+      <hr>
+
+      <!-- Patient context -->
+      {% if patient_context %}
+      <div class="alert alert-info py-2 px-3 mb-3 small">
+        <strong>Patient context:</strong> <code>{{ patient_context }}</code>
+        &nbsp;— access will be scoped to this patient only.
+      </div>
+      {% endif %}
+
+      <!-- Scopes -->
+      <h6 class="fw-semibold mb-2">Requested Permissions</h6>
+      {% if requested_scopes %}
+      <ul class="list-group list-group-flush mb-3">
+        {% for s in requested_scopes %}
+        <li class="list-group-item px-0 py-1 small d-flex align-items-center">
+          <span class="text-success me-2">&#10003;</span>
+          <code>{{ s }}</code>
+          {% if s == "openid" %}
+            &nbsp;<span class="text-muted">— verify your identity</span>
+          {% elif s == "launch/patient" %}
+            &nbsp;<span class="text-muted">— access patient context from EHR</span>
+          {% elif s == "patient/*.read" or s == "user/*.read" or s == "system/*.read" %}
+            &nbsp;<span class="text-muted">— read-only access to all FHIR resources</span>
+          {% elif s == "offline_access" %}
+            &nbsp;<span class="text-muted">— maintain access when you are offline (refresh tokens)</span>
+          {% else %}
+            &nbsp;<span class="text-muted">— FHIR resource access</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted small">No specific scopes requested.</p>
+      {% endif %}
+
+      <hr>
+
+      <!-- Action form -->
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="client_id"            value="{{ client.client_id }}">
+        <input type="hidden" name="redirect_uri"         value="{{ redirect_uri }}">
+        <input type="hidden" name="scope"                value="{{ scope }}">
+        <input type="hidden" name="state"                value="{{ state }}">
+        <input type="hidden" name="code_challenge"       value="{{ code_challenge }}">
+        <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+        <input type="hidden" name="patient_context"      value="{{ patient_context }}">
+
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-end mt-3">
+          <button type="submit" name="action" value="deny"
+                  class="btn btn-outline-secondary">
+            Deny
+          </button>
+          <button type="submit" name="action" value="approve"
+                  class="btn btn-primary px-4">
+            Approve
+          </button>
+        </div>
+      </form>
+
+    </div><!-- /card-body -->
+
+    <div class="card-footer text-muted small py-2 px-4">
+      Logged in as <strong>{{ request.user.username }}</strong>.
+      &nbsp;|&nbsp;
+      Token expires in 1 hour. Redirect URI: <code class="text-truncate d-inline-block" style="max-width:260px;">{{ redirect_uri }}</code>
+    </div>
+  </div><!-- /card -->
+
+  <!-- Protocol explainer for portfolio reviewers -->
+  <div class="card mt-4 border-0 bg-light">
+    <div class="card-body small text-muted">
+      <strong>How this works (SMART App Launch Framework)</strong>
+      <ol class="mb-0 mt-1 ps-3">
+        <li>App discovers <code>/.well-known/smart-configuration</code></li>
+        <li>App redirects here with <code>response_type=code</code>, <code>scope</code>, and PKCE <code>code_challenge</code></li>
+        <li>User approves → server issues <strong>authorization code</strong> to <code>redirect_uri</code></li>
+        <li>App calls <code>POST /oauth2/token</code> with <code>code</code> + <code>code_verifier</code> (PKCE)</li>
+        <li>Server validates PKCE, returns <strong>JWT access token</strong> + <code>patient</code> context</li>
+        <li>App calls FHIR API with <code>Authorization: Bearer &lt;token&gt;</code></li>
+      </ol>
+    </div>
+  </div>
+
+</div><!-- /container -->
+{% endblock %}

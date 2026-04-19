@@ -1,0 +1,1428 @@
+{
+  "info": {
+    "name": "Django SAM Healthcare — Interoperability SME Demo",
+    "description": "Complete API collection for the healthcare integration portfolio.\n\n## Quick Start\n1. Set `base_url` to https://django-sam-healthcare.vercel.app (or http://localhost:8000)\n2. Run **00 Setup / Step 1 – Get CSRF Token** then **Step 2 – Login** to establish a session.\n3. For the SMART on FHIR OAuth2 flow see folder 02.\n4. For Mirth webhook testing the JWT is auto-generated via pre-request script.\n\n## Demo credentials\n- Username: demo\n- Password: demo1234\n\n## Auth model\n| Endpoint group | Auth method |\n|---|---|\n| FHIR R4, Bulk, Trace, ADT, CCDA | Django session cookie (login first) |\n| Da Vinci CRD / PAS, HL7 transform | Session or BasicAuth |\n| POST /api/mirth/hl7/ | Bearer JWT (HS256, auto-generated) |\n| POST /oauth2/token, introspect, revoke | No auth required (open endpoints) |\n| GET /.well-known/* | Public |",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+
+  "variable": [
+    { "key": "base_url",          "value": "https://django-sam-healthcare.vercel.app", "type": "string" },
+    { "key": "username",          "value": "demo",        "type": "string" },
+    { "key": "password",          "value": "demo1234",    "type": "string" },
+    { "key": "csrf_token",        "value": "",            "type": "string" },
+    { "key": "access_token",      "value": "",            "type": "string" },
+    { "key": "refresh_token",     "value": "",            "type": "string" },
+    { "key": "client_id",         "value": "",            "type": "string" },
+    { "key": "code_verifier",     "value": "",            "type": "string" },
+    { "key": "code_challenge",    "value": "",            "type": "string" },
+    { "key": "auth_code",         "value": "",            "type": "string" },
+    { "key": "bulk_job_id",       "value": "",            "type": "string" },
+    { "key": "mirth_jwt",         "value": "",            "type": "string" },
+    { "key": "mirth_jwt_secret",  "value": "MIRTH_DEMO_SECRET_KEY", "type": "string" },
+    { "key": "patient_id",        "value": "10001",       "type": "string" },
+    { "key": "encounter_id",      "value": "enc-1",       "type": "string" }
+  ],
+
+  "item": [
+
+    {
+      "name": "00 – Setup & Login",
+      "description": "Establish a Django session. Run Step 1 then Step 2 in order.",
+      "item": [
+
+        {
+          "name": "Step 1 – Get CSRF Token",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/accounts/login/", "host": ["{{base_url}}"], "path": ["accounts","login",""] },
+            "description": "Fetches the login page and extracts the csrftoken cookie."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Login page loads', () => pm.response.to.have.status(200));",
+              "const cookie = pm.cookies.get('csrftoken');",
+              "if (cookie) {",
+              "    pm.collectionVariables.set('csrf_token', cookie);",
+              "    console.log('CSRF token saved:', cookie);",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Step 2 – Login (Session Auth)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/accounts/login/", "host": ["{{base_url}}"], "path": ["accounts","login",""] },
+            "header": [{ "key": "Referer", "value": "{{base_url}}/accounts/login/" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username",          "value": "{{username}}" },
+                { "key": "password",          "value": "{{password}}" },
+                { "key": "csrfmiddlewaretoken","value": "{{csrf_token}}" },
+                { "key": "next",              "value": "/" }
+              ]
+            },
+            "description": "Creates a Django session. Postman will store the sessionid cookie automatically."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Redirect after login (302)', () => {",
+              "    pm.expect([200, 302]).to.include(pm.response.code);",
+              "});",
+              "const session = pm.cookies.get('sessionid');",
+              "pm.test('Session cookie set', () => pm.expect(session).to.be.a('string'));",
+              "console.log('Logged in — session:', session);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health/", "host": ["{{base_url}}"], "path": ["health",""] },
+            "description": "Public uptime endpoint. No auth required."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Status ok', () => {",
+              "    pm.expect(pm.response.json().status).to.equal('ok');",
+              "});"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "01 – SMART on FHIR Discovery",
+      "description": "Public discovery endpoints. No auth required. These are the first calls a SMART app makes.",
+      "item": [
+
+        {
+          "name": "GET /.well-known/smart-configuration",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/.well-known/smart-configuration", "host": ["{{base_url}}"], "path": [".well-known","smart-configuration"] },
+            "description": "Returns SMART on FHIR OAuth2 server metadata. ONC-required endpoint for every certified EHR.\n\nExpected: authorization_endpoint, token_endpoint, scopes_supported, capabilities."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('CORS header present', () => {",
+              "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal('*');",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('Has authorization_endpoint', () => pm.expect(body).to.have.property('authorization_endpoint'));",
+              "pm.test('Has token_endpoint', () => pm.expect(body).to.have.property('token_endpoint'));",
+              "pm.test('Has jwks_uri', () => pm.expect(body).to.have.property('jwks_uri'));",
+              "pm.test('Has scopes_supported', () => pm.expect(body.scopes_supported).to.include('patient/*.read'));",
+              "pm.test('Supports PKCE S256', () => pm.expect(body.code_challenge_methods_supported).to.include('S256'));",
+              "pm.test('Has EHR launch capability', () => pm.expect(body.capabilities).to.include('launch-ehr'));",
+              "console.log('Token endpoint:', body.token_endpoint);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /.well-known/jwks.json",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/.well-known/jwks.json", "host": ["{{base_url}}"], "path": [".well-known","jwks.json"] },
+            "description": "Returns the JSON Web Key Set. Resource servers use this to verify access token signatures.\n\nDemo uses HS256 symmetric key. Production would use RS256/ES256 asymmetric keys."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('CORS header present', () => {",
+              "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal('*');",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('Has keys array', () => {",
+              "    pm.expect(body).to.have.property('keys');",
+              "    pm.expect(body.keys).to.be.an('array').with.length.above(0);",
+              "});",
+              "pm.test('Key has required JWK fields', () => {",
+              "    const key = body.keys[0];",
+              "    ['kty','use','alg','kid','k'].forEach(f => pm.expect(key).to.have.property(f));",
+              "});",
+              "pm.test('Algorithm is HS256', () => pm.expect(body.keys[0].alg).to.equal('HS256'));",
+              "pm.test('Use is sig', () => pm.expect(body.keys[0].use).to.equal('sig'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/ (CapabilityStatement)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/", "host": ["{{base_url}}"], "path": ["fhir",""] },
+            "description": "FHIR CapabilityStatement — describes server capabilities, supported resources, and operations including $export."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type is FHIR JSON', () => {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('fhir+json');",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('resourceType is CapabilityStatement', () => pm.expect(body.resourceType).to.equal('CapabilityStatement'));",
+              "pm.test('FHIR version 4.0.1', () => pm.expect(body.fhirVersion).to.equal('4.0.1'));",
+              "pm.test('SMART-on-FHIR security advertised', () => {",
+              "    const sec = body.rest[0].security.service[0].coding[0].code;",
+              "    pm.expect(sec).to.equal('SMART-on-FHIR');",
+              "});",
+              "pm.test('$export operation declared', () => {",
+              "    const ops = body.rest[0].operation || [];",
+              "    pm.expect(ops.some(o => o.name === 'export')).to.be.true;",
+              "});"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "02 – OAuth2 Token Management (SMART on FHIR)",
+      "description": "Full SMART authorization code + PKCE flow.\n\nStep order:\n1. Register Client\n2. Generate PKCE pair (pre-request script)\n3. Open authorize URL in browser — approve consent → copy code from redirect URL\n4. Set auth_code variable, then Exchange Code for Token\n5. Use access_token for FHIR requests\n6. Introspect / Revoke as needed",
+      "item": [
+
+        {
+          "name": "Register Client (Dynamic Registration RFC 7591)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/register", "host": ["{{base_url}}"], "path": ["oauth2","register"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_name\": \"Postman SMART Demo App\",\n  \"redirect_uris\": [\"https://oauth.pstmn.io/v1/callback\"],\n  \"grant_types\": [\"authorization_code\", \"refresh_token\"],\n  \"scope\": \"openid launch/patient patient/*.read offline_access\",\n  \"token_endpoint_auth_method\": \"none\"\n}"
+            },
+            "description": "Registers a new public OAuth2 client (no client_secret required — uses PKCE).\n\nReturn value includes client_id — save it to the collection variable."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('Has client_id', () => pm.expect(body).to.have.property('client_id'));",
+              "pm.test('No client_secret for public client', () => pm.expect(body).not.to.have.property('client_secret'));",
+              "pm.test('Scopes registered', () => pm.expect(body.scope).to.include('patient/*.read'));",
+              "pm.collectionVariables.set('client_id', body.client_id);",
+              "console.log('Client registered:', body.client_id);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Generate PKCE Pair (pre-request only — open authorize URL in browser)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/oauth2/authorize?client_id={{client_id}}&redirect_uri=https://oauth.pstmn.io/v1/callback&response_type=code&scope=openid+launch%2Fpatient+patient%2F*.read+offline_access&state=postman-test&code_challenge={{code_challenge}}&code_challenge_method=S256",
+              "host": ["{{base_url}}"],
+              "path": ["oauth2","authorize"],
+              "query": [
+                { "key": "client_id",             "value": "{{client_id}}" },
+                { "key": "redirect_uri",          "value": "https://oauth.pstmn.io/v1/callback" },
+                { "key": "response_type",         "value": "code" },
+                { "key": "scope",                 "value": "openid launch/patient patient/*.read offline_access" },
+                { "key": "state",                 "value": "postman-test" },
+                { "key": "code_challenge",        "value": "{{code_challenge}}" },
+                { "key": "code_challenge_method", "value": "S256" }
+              ]
+            },
+            "description": "PKCE pair is generated in the pre-request script.\n\n**Instructions:**\n1. Send this request — the pre-request script will populate code_verifier and code_challenge variables.\n2. Copy the full URL from the request tab.\n3. Open it in your browser (you must be logged in to the demo app).\n4. Approve the consent screen.\n5. Copy the `code=` value from the redirect URL.\n6. Paste it into the `auth_code` collection variable.\n7. Run 'Exchange Auth Code for Token'."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "// Generate PKCE code_verifier + code_challenge (S256)",
+                "const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                "let verifier = '';",
+                "for (let i = 0; i < 64; i++) {",
+                "    verifier += chars[Math.floor(Math.random() * chars.length)];",
+                "}",
+                "const hash = CryptoJS.SHA256(verifier);",
+                "const challenge = CryptoJS.enc.Base64.stringify(hash)",
+                "    .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=/g, '');",
+                "pm.collectionVariables.set('code_verifier', verifier);",
+                "pm.collectionVariables.set('code_challenge', challenge);",
+                "console.log('code_verifier:', verifier);",
+                "console.log('code_challenge:', challenge);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('PKCE variables set', () => {",
+                "    pm.expect(pm.collectionVariables.get('code_verifier')).to.have.length.above(40);",
+                "    pm.expect(pm.collectionVariables.get('code_challenge')).to.have.length.above(40);",
+                "});",
+                "console.log('Now open the URL in a browser, approve consent, then copy code= from redirect URL.');",
+                "console.log('Set auth_code variable to that value, then run Exchange Auth Code for Token.');"
+              ]}
+            }
+          ]
+        },
+
+        {
+          "name": "Exchange Auth Code for Token (authorization_code + PKCE)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/token", "host": ["{{base_url}}"], "path": ["oauth2","token"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type",    "value": "authorization_code" },
+                { "key": "code",          "value": "{{auth_code}}" },
+                { "key": "redirect_uri",  "value": "https://oauth.pstmn.io/v1/callback" },
+                { "key": "client_id",     "value": "{{client_id}}" },
+                { "key": "code_verifier", "value": "{{code_verifier}}" }
+              ]
+            },
+            "description": "Exchanges the authorization code for an access token.\n\nPKCE S256 validation: server recomputes SHA256(code_verifier) and compares to stored code_challenge.\n\nResponse includes `patient` context — the authorized patient ID."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Has access_token', () => pm.expect(body).to.have.property('access_token'));",
+              "pm.test('token_type is Bearer', () => pm.expect(body.token_type).to.equal('Bearer'));",
+              "pm.test('expires_in is 3600', () => pm.expect(body.expires_in).to.equal(3600));",
+              "pm.test('Has refresh_token (offline_access scope)', () => pm.expect(body).to.have.property('refresh_token'));",
+              "pm.test('Has patient context', () => pm.expect(body).to.have.property('patient'));",
+              "pm.collectionVariables.set('access_token', body.access_token);",
+              "pm.collectionVariables.set('refresh_token', body.refresh_token || '');",
+              "if (body.patient) pm.collectionVariables.set('patient_id', body.patient);",
+              "console.log('Access token saved. Patient context:', body.patient);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Token – Client Credentials (system-to-system)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/token", "host": ["{{base_url}}"], "path": ["oauth2","token"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type",  "value": "client_credentials" },
+                { "key": "client_id",   "value": "{{client_id}}" },
+                { "key": "scope",       "value": "system/*.read" }
+              ]
+            },
+            "description": "System-to-system token (no user context). Used for payer-to-payer data exchange and backend integrations.\n\nNote: client must have client_credentials in its grant_types. Register a new client with that grant if needed."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const body = pm.response.json();",
+              "if (pm.response.code === 200) {",
+              "    pm.test('Has access_token', () => pm.expect(body).to.have.property('access_token'));",
+              "    pm.test('No refresh_token (system token)', () => pm.expect(body).not.to.have.property('refresh_token'));",
+              "    pm.test('No patient context', () => pm.expect(body).not.to.have.property('patient'));",
+              "    pm.collectionVariables.set('access_token', body.access_token);",
+              "} else {",
+              "    pm.test('Expected: client may not support client_credentials grant', () => {",
+              "        pm.expect(body.error).to.equal('unauthorized_client');",
+              "    });",
+              "    console.log('Register a new client with grant_types=[client_credentials] to test this flow.');",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Token – Refresh Token Rotation",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/token", "host": ["{{base_url}}"], "path": ["oauth2","token"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type",    "value": "refresh_token" },
+                { "key": "refresh_token", "value": "{{refresh_token}}" }
+              ]
+            },
+            "description": "Rotates the refresh token — old token is revoked, new access + refresh tokens issued.\n\nReusing a rotated refresh token returns invalid_grant (security: detect replay attacks)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('New access_token issued', () => {",
+              "    const oldToken = pm.collectionVariables.get('access_token');",
+              "    pm.expect(body.access_token).to.not.equal(oldToken);",
+              "});",
+              "pm.test('New refresh_token issued (rotation)', () => {",
+              "    const oldRefresh = pm.collectionVariables.get('refresh_token');",
+              "    pm.expect(body.refresh_token).to.not.equal(oldRefresh);",
+              "});",
+              "pm.collectionVariables.set('access_token', body.access_token);",
+              "pm.collectionVariables.set('refresh_token', body.refresh_token);",
+              "console.log('Tokens rotated.');"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Introspect Token (RFC 7662)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/introspect", "host": ["{{base_url}}"], "path": ["oauth2","introspect"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "token", "value": "{{access_token}}" }
+              ]
+            },
+            "description": "Resource servers call this to validate a Bearer token and retrieve metadata.\n\nReturns active=true with scope, patient context, and expiry. Returns active=false for invalid/revoked/expired tokens."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Token is active', () => pm.expect(body.active).to.be.true);",
+              "pm.test('Has scope', () => pm.expect(body).to.have.property('scope'));",
+              "pm.test('Has client_id', () => pm.expect(body).to.have.property('client_id'));",
+              "pm.test('Has exp (expiry timestamp)', () => pm.expect(body).to.have.property('exp'));",
+              "pm.test('Expiry is in the future', () => {",
+              "    pm.expect(body.exp).to.be.above(Math.floor(Date.now() / 1000));",
+              "});",
+              "console.log('Token scope:', body.scope, '| patient:', body.patient);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Introspect Invalid Token → active=false",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/introspect", "host": ["{{base_url}}"], "path": ["oauth2","introspect"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [{ "key": "token", "value": "this.is.not.a.valid.token" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Revoke Token (RFC 7009)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/revoke", "host": ["{{base_url}}"], "path": ["oauth2","revoke"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [{ "key": "token", "value": "{{access_token}}" }]
+            },
+            "description": "Revokes a token immediately. Subsequent introspect calls return active=false."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 (RFC 7009 always returns 200)', () => pm.response.to.have.status(200));",
+              "console.log('Token revoked. Run Introspect to confirm active=false.');"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Token – PKCE Wrong Verifier → invalid_grant",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/token", "host": ["{{base_url}}"], "path": ["oauth2","token"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type",    "value": "authorization_code" },
+                { "key": "code",          "value": "{{auth_code}}" },
+                { "key": "redirect_uri",  "value": "https://oauth.pstmn.io/v1/callback" },
+                { "key": "client_id",     "value": "{{client_id}}" },
+                { "key": "code_verifier", "value": "wrong-verifier-that-wont-match-any-challenge" }
+              ]
+            },
+            "description": "Negative test: wrong code_verifier should fail PKCE validation and return invalid_grant."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 400', () => pm.response.to.have.status(400));",
+              "pm.test('Error is invalid_grant', () => pm.expect(pm.response.json().error).to.equal('invalid_grant'));",
+              "pm.test('Description mentions PKCE', () => pm.expect(pm.response.json().error_description).to.include('PKCE'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "Token – Unsupported Grant Type → error",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/oauth2/token", "host": ["{{base_url}}"], "path": ["oauth2","token"] },
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [{ "key": "grant_type", "value": "implicit" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 400', () => pm.response.to.have.status(400));",
+              "pm.test('Error is unsupported_grant_type', () => pm.expect(pm.response.json().error).to.equal('unsupported_grant_type'));"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "03 – FHIR R4 API",
+      "description": "US Core-aligned FHIR R4 REST endpoints. Requires session login (run 00 Setup first).",
+      "item": [
+
+        {
+          "name": "GET /fhir/Patient/ (search — all)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/Patient/", "host": ["{{base_url}}"], "path": ["fhir","Patient",""] },
+            "description": "Returns a FHIR Bundle of Patient resources (deduplicated by MRN)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type fhir+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('fhir+json'));",
+              "const body = pm.response.json();",
+              "pm.test('resourceType is Bundle', () => pm.expect(body.resourceType).to.equal('Bundle'));",
+              "pm.test('type is searchset', () => pm.expect(body.type).to.equal('searchset'));",
+              "pm.test('Has total', () => pm.expect(body).to.have.property('total'));",
+              "pm.test('Has entry array', () => pm.expect(body.entry).to.be.an('array'));",
+              "if (body.entry && body.entry.length > 0) {",
+              "    const p = body.entry[0].resource;",
+              "    pm.test('First entry is Patient', () => pm.expect(p.resourceType).to.equal('Patient'));",
+              "    pm.test('Patient has id', () => pm.expect(p).to.have.property('id'));",
+              "    pm.collectionVariables.set('patient_id', p.id);",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Patient/?identifier=10001 (search by MRN)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fhir/Patient/?identifier={{patient_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["fhir","Patient",""],
+              "query": [{ "key": "identifier", "value": "{{patient_id}}" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Bundle type searchset', () => pm.expect(body.type).to.equal('searchset'));",
+              "if (body.entry && body.entry.length > 0) {",
+              "    pm.test('Patient id matches search', () => {",
+              "        pm.expect(body.entry[0].resource.id).to.equal(pm.collectionVariables.get('patient_id'));",
+              "    });",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Patient/:id (read)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/Patient/{{patient_id}}/", "host": ["{{base_url}}"], "path": ["fhir","Patient","{{patient_id}}",""] },
+            "description": "Returns a single FHIR Patient resource by MRN."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('resourceType is Patient', () => pm.expect(body.resourceType).to.equal('Patient'));",
+              "pm.test('Has id', () => pm.expect(body).to.have.property('id'));",
+              "pm.test('Has name', () => pm.expect(body).to.have.property('name'));",
+              "pm.test('Has identifier (MRN)', () => pm.expect(body.identifier).to.be.an('array').with.length.above(0));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Patient/NOBODY/ → 404 OperationOutcome",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/Patient/NOBODY/", "host": ["{{base_url}}"], "path": ["fhir","Patient","NOBODY",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 404', () => pm.response.to.have.status(404));",
+              "pm.test('resourceType is OperationOutcome', () => pm.expect(pm.response.json().resourceType).to.equal('OperationOutcome'));",
+              "pm.test('Issue severity is error', () => pm.expect(pm.response.json().issue[0].severity).to.equal('error'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Encounter/ (search)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/Encounter/", "host": ["{{base_url}}"], "path": ["fhir","Encounter",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Bundle type searchset', () => pm.expect(body.type).to.equal('searchset'));",
+              "if (body.entry && body.entry.length > 0) {",
+              "    const enc = body.entry[0].resource;",
+              "    pm.test('Entry is Encounter', () => pm.expect(enc.resourceType).to.equal('Encounter'));",
+              "    pm.collectionVariables.set('encounter_id', enc.id);",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Encounter/?subject=Patient/:id (filter by patient)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fhir/Encounter/?subject=Patient/{{patient_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["fhir","Encounter",""],
+              "query": [{ "key": "subject", "value": "Patient/{{patient_id}}" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('resourceType Bundle', () => pm.expect(pm.response.json().resourceType).to.equal('Bundle'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/DiagnosticReport/ (search)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/DiagnosticReport/", "host": ["{{base_url}}"], "path": ["fhir","DiagnosticReport",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('resourceType Bundle', () => pm.expect(pm.response.json().resourceType).to.equal('Bundle'));",
+              "pm.test('type searchset', () => pm.expect(pm.response.json().type).to.equal('searchset'));"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "04 – Bulk FHIR $export",
+      "description": "FHIR Bulk Data IG v2.0. Async 202 → poll → NDJSON download pattern (CMS-9115-F mandate).",
+      "item": [
+
+        {
+          "name": "GET /fhir/Patient/$export (initiate)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fhir/Patient/$export?_type=Patient,Encounter",
+              "host": ["{{base_url}}"],
+              "path": ["fhir","Patient","$export"],
+              "query": [
+                { "key": "_type",  "value": "Patient,Encounter" },
+                { "key": "_outputFormat", "value": "application/fhir+ndjson", "disabled": true }
+              ]
+            },
+            "description": "Initiates async bulk export.\n\nReturns 202 Accepted + Content-Location header → poll that URL for status.\nThe pre-test script extracts the job_id and saves it."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+              "pm.test('Content-Location header present', () => {",
+              "    pm.expect(pm.response.headers.get('Content-Location')).to.include('/fhir/bulkstatus/');",
+              "});",
+              "const loc = pm.response.headers.get('Content-Location') || '';",
+              "const match = loc.match(/bulkstatus\\/([^/]+)/);",
+              "if (match) {",
+              "    pm.collectionVariables.set('bulk_job_id', match[1]);",
+              "    console.log('Bulk job ID saved:', match[1]);",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Patient/$export?_since=2024-01-01 (incremental)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fhir/Patient/$export?_since=2024-01-01T00:00:00Z",
+              "host": ["{{base_url}}"],
+              "path": ["fhir","Patient","$export"],
+              "query": [{ "key": "_since", "value": "2024-01-01T00:00:00Z" }]
+            },
+            "description": "Incremental export — only resources updated after _since date."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 202', () => pm.response.to.have.status(202));",
+              "pm.test('Content-Location header present', () => {",
+              "    pm.expect(pm.response.headers.get('Content-Location')).to.be.a('string');",
+              "});"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/Patient/$export?_outputFormat=text/csv → 400",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fhir/Patient/$export?_outputFormat=text/csv",
+              "host": ["{{base_url}}"],
+              "path": ["fhir","Patient","$export"],
+              "query": [{ "key": "_outputFormat", "value": "text/csv" }]
+            },
+            "description": "Negative test: unsupported output format should return 400 OperationOutcome."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 400', () => pm.response.to.have.status(400));",
+              "pm.test('OperationOutcome returned', () => pm.expect(pm.response.json().resourceType).to.equal('OperationOutcome'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/bulkstatus/:job_id (poll status)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/bulkstatus/{{bulk_job_id}}/", "host": ["{{base_url}}"], "path": ["fhir","bulkstatus","{{bulk_job_id}}",""] },
+            "description": "Returns 202 if still processing, 200 with manifest when complete.\n\nManifest includes output[] array with type and url for each NDJSON file."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "if (pm.response.code === 200) {",
+              "    const body = pm.response.json();",
+              "    pm.test('Has transactionTime', () => pm.expect(body).to.have.property('transactionTime'));",
+              "    pm.test('Has output array', () => pm.expect(body.output).to.be.an('array'));",
+              "    pm.test('Output has Patient file', () => {",
+              "        pm.expect(body.output.some(f => f.type === 'Patient')).to.be.true;",
+              "    });",
+              "    pm.test('Each file has type, url, count', () => {",
+              "        body.output.forEach(f => {",
+              "            pm.expect(f).to.have.property('type');",
+              "            pm.expect(f).to.have.property('url');",
+              "            pm.expect(f).to.have.property('count');",
+              "        });",
+              "    });",
+              "    console.log('Export complete. Files:', JSON.stringify(body.output));",
+              "} else {",
+              "    pm.test('Status 202 — still processing', () => pm.response.to.have.status(202));",
+              "}"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /fhir/bulkfiles/:job_id/Patient.ndjson",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/fhir/bulkfiles/{{bulk_job_id}}/Patient.ndjson", "host": ["{{base_url}}"], "path": ["fhir","bulkfiles","{{bulk_job_id}}","Patient.ndjson"] },
+            "description": "Downloads the Patient NDJSON file.\n\nContent-Type: application/fhir+ndjson\nEach line is one FHIR Patient resource (JSON)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type fhir+ndjson', () => {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('fhir+ndjson');",
+              "});",
+              "pm.test('Content-Disposition is attachment', () => {",
+              "    pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment');",
+              "});",
+              "const text = pm.response.text();",
+              "const lines = text.split('\\n').filter(l => l.trim());",
+              "pm.test('NDJSON has at least one line', () => pm.expect(lines.length).to.be.above(0));",
+              "pm.test('Each line is valid FHIR Patient JSON', () => {",
+              "    lines.forEach(line => {",
+              "        const r = JSON.parse(line);",
+              "        pm.expect(r.resourceType).to.equal('Patient');",
+              "    });",
+              "});",
+              "console.log('Downloaded', lines.length, 'Patient records as NDJSON.');"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "05 – HL7 v2 Pipeline",
+      "description": "HL7 v2 transform (unauthenticated playground) and Mirth Connect webhook (JWT auth).",
+      "item": [
+
+        {
+          "name": "POST /api/transform/ — ADT^A01 (Admission)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/transform/", "host": ["{{base_url}}"], "path": ["api","transform",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hl7_message\": \"MSH|^~\\\\&|EPIC|HOSPITAL|MIRTH|ROUTER|20240115120000||ADT^A01|MSG-20240115-001|P|2.5\\rPID|1||10001^^^MRN||SMITH^JOHN^A||19800315|M|||123 MAIN ST^^SPRINGFIELD^IL^62701||555-555-1234\\rPV1|1|I|WEST^101^1^GENERAL|||2001^JONES^ROBERT^M|||MED|||||||ADM|A0||||||||||||||||||||||20240115120000\"\n}"
+            },
+            "description": "Transforms an HL7 ADT^A01 (inpatient admission) to FHIR Patient + Encounter + X12 837 claim.\n\nNo auth required — playground endpoint."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('message_type is ADT^A01', () => pm.expect(body.message_type).to.equal('ADT^A01'));",
+              "pm.test('FHIR Patient resource present', () => {",
+              "    pm.expect(body.patient).to.be.an('object');",
+              "    pm.expect(body.patient.resourceType).to.equal('Patient');",
+              "});",
+              "pm.test('Patient has name', () => pm.expect(body.patient.name).to.be.an('array').with.length.above(0));",
+              "pm.test('Patient has MRN identifier', () => pm.expect(body.patient.identifier).to.be.an('array').with.length.above(0));",
+              "pm.test('FHIR Encounter resource present', () => {",
+              "    pm.expect(body.encounter).to.be.an('object');",
+              "    pm.expect(body.encounter.resourceType).to.equal('Encounter');",
+              "});",
+              "pm.test('X12 837 generated', () => pm.expect(body.x12_837).to.be.a('string').with.length.above(10));",
+              "pm.test('X12 835 ERA generated', () => pm.expect(body.x12_835).to.be.a('string').with.length.above(10));",
+              "console.log('PID-5 name:', body.patient.name[0]);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/transform/ — ORU^R01 (Lab Result)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/transform/", "host": ["{{base_url}}"], "path": ["api","transform",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hl7_message\": \"MSH|^~\\\\&|LAB|HOSPITAL|MIRTH|ROUTER|20240115140000||ORU^R01|ORU-001|P|2.5\\rPID|1||10001^^^MRN||SMITH^JOHN||19800315|M\\rOBR|1|||85025^CBC^L|||20240115140000\\rOBX|1|NM|718-7^Hemoglobin^LN||13.5|g/dL|12.0-16.0|N|||F\"\n}"
+            },
+            "description": "Transforms an HL7 ORU^R01 (lab result) to FHIR DiagnosticReport + Observation resources."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('message_type is ORU^R01', () => pm.expect(body.message_type).to.equal('ORU^R01'));",
+              "pm.test('FHIR Patient present', () => pm.expect(body.patient.resourceType).to.equal('Patient'));",
+              "pm.test('FHIR DiagnosticReport present', () => {",
+              "    pm.expect(body.report).to.be.an('object');",
+              "    pm.expect(body.report.resourceType).to.equal('DiagnosticReport');",
+              "});",
+              "pm.test('Observations array present', () => pm.expect(body.observations).to.be.an('array').with.length.above(0));",
+              "pm.test('Observation has LOINC code', () => {",
+              "    const obs = body.observations[0];",
+              "    pm.expect(obs.resourceType).to.equal('Observation');",
+              "});"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/transform/ — SIU^S12 (Appointment Scheduled)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/transform/", "host": ["{{base_url}}"], "path": ["api","transform",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hl7_message\": \"MSH|^~\\\\&|SCHED|HOSPITAL|MIRTH|ROUTER|20240115090000||SIU^S12|SIU-001|P|2.3\\rPID|1||10001^^^MRN||SMITH^JOHN||19800315|M\\rSCH|APT-20240120-001||||||ROUTINE|30|min||20240120100000|20240120103000\\rAIG|1|||2001^JONES^ROBERT\"\n}"
+            },
+            "description": "Transforms SIU^S12 (new appointment) to FHIR Appointment resource."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('message_type is SIU^S12', () => pm.expect(body.message_type).to.include('SIU'));",
+              "pm.test('FHIR Appointment present', () => {",
+              "    pm.expect(body.appointment).to.be.an('object');",
+              "    pm.expect(body.appointment.resourceType).to.equal('Appointment');",
+              "});"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/mirth/hl7/ — Mirth Webhook (JWT auth)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/mirth/hl7/", "host": ["{{base_url}}"], "path": ["api","mirth","hl7",""] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{mirth_jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hl7_message\": \"MSH|^~\\\\&|MIRTH|HOSPITAL|BACKEND|ROUTER|20240115120000||ADT^A01|MIRTH-001|P|2.5\\rPID|1||10001^^^MRN||SMITH^JOHN||19800315|M|||123 MAIN ST^^SPRINGFIELD^IL^62701\\rPV1|1|I|WEST^101^1^GH|||2001^JONES^ROBERT|||MED|||||||ADM|A0||||||||||||||||||||||20240115120000\",\n  \"source_system\": \"MIRTH_DEMO\",\n  \"channel_id\": \"adt-inbound-01\"\n}"
+            },
+            "description": "Production Mirth Connect webhook endpoint.\n\nRequires JWT with iss=django-sam-healthcare, aud=mirth-connector.\nThe pre-request script auto-generates a valid JWT using HS256 + the demo secret."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "// Auto-generate Mirth JWT (HS256)",
+                "const secret = pm.collectionVariables.get('mirth_jwt_secret') || 'MIRTH_DEMO_SECRET_KEY';",
+                "const now = Math.floor(Date.now() / 1000);",
+                "const headerB64 = btoa(JSON.stringify({alg:'HS256',typ:'JWT'}))",
+                "    .replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');",
+                "const payloadB64 = btoa(JSON.stringify({",
+                "    iss:'django-sam-healthcare',aud:'mirth-connector',",
+                "    iat:now,exp:now+3600,sub:'mirth-channel-01'",
+                "})).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');",
+                "const msg = headerB64+'.'+payloadB64;",
+                "const sig = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(msg,secret))",
+                "    .replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');",
+                "pm.collectionVariables.set('mirth_jwt', msg+'.'+sig);",
+                "console.log('Mirth JWT generated');"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const body = pm.response.json();",
+                "pm.test('ACK code is AA (Application Accept)', () => {",
+                "    pm.expect(['AA','AE']).to.include(body.ack_code);",
+                "});",
+                "pm.test('Has trace_id', () => pm.expect(body).to.have.property('trace_id'));",
+                "pm.test('Has FHIR patient', () => pm.expect(body.fhir_patient).to.be.an('object'));",
+                "console.log('ACK:', body.ack_code, '| Trace ID:', body.trace_id);"
+              ]}
+            }
+          ]
+        },
+
+        {
+          "name": "POST /api/mirth/hl7/ — Invalid JWT → 401",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/mirth/hl7/", "host": ["{{base_url}}"], "path": ["api","mirth","hl7",""] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer invalid.jwt.token" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"hl7_message\": \"MSH|...\"}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 401', () => pm.response.to.have.status(401));",
+              "pm.test('ACK code is AE or AR (error)', () => {",
+              "    pm.expect(['AE','AR']).to.include(pm.response.json().ack_code);",
+              "});"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "06 – Da Vinci Prior Authorization",
+      "description": "CMS-0057-F (2026) mandate. CDS Hooks Coverage Requirements Discovery + FHIR Prior Auth Submission.",
+      "item": [
+
+        {
+          "name": "POST /api/prior-auth/crd/ — MRI (requires PA) → warning card",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/crd/", "host": ["{{base_url}}"], "path": ["api","prior-auth","crd",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hook\": \"order-select\",\n  \"hookInstance\": \"e5c69915-baef-4b7e-89c1-f4b5d2e80c21\",\n  \"context\": {\n    \"patientId\": \"10001\",\n    \"encounterId\": \"enc-42\",\n    \"draftOrders\": {\n      \"resourceType\": \"Bundle\",\n      \"entry\": [{\n        \"resource\": {\n          \"resourceType\": \"ServiceRequest\",\n          \"code\": {\n            \"coding\": [{ \"system\": \"http://www.ama-assn.org/go/cpt\", \"code\": \"73721\", \"display\": \"MRI joint lower extremity\" }]\n          }\n        }\n      }]\n    }\n  }\n}"
+            },
+            "description": "CPT 73721 = MRI joint — prior auth required by most plans.\n\nExpected: CDS card with indicator=warning and documentation_needed list."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Has cards array', () => pm.expect(body.cards).to.be.an('array').with.length.above(0));",
+              "const card = body.cards[0];",
+              "pm.test('Card indicator is warning (PA required)', () => pm.expect(card.indicator).to.equal('warning'));",
+              "pm.test('Card has summary', () => pm.expect(card.summary).to.include('Prior Authorization Required'));",
+              "pm.test('Card has documentation list', () => {",
+              "    const ext = card.extension['davinci-crd.coverage-information'];",
+              "    pm.expect(ext['documentation-needed']).to.be.an('array').with.length.above(0);",
+              "});",
+              "pm.test('Card has PAS suggestion', () => pm.expect(card.suggestions).to.be.an('array').with.length.above(0));",
+              "pm.test('Card has PAS link', () => pm.expect(card.links).to.be.an('array').with.length.above(0));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/prior-auth/crd/ — Office Visit (no PA) → info card",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/crd/", "host": ["{{base_url}}"], "path": ["api","prior-auth","crd",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hook\": \"order-select\",\n  \"hookInstance\": \"abc123\",\n  \"service_code\": \"99213\",\n  \"context\": { \"patientId\": \"10001\" }\n}"
+            },
+            "description": "CPT 99213 = office visit — no prior auth required."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Card indicator is info (no PA)', () => pm.expect(pm.response.json().cards[0].indicator).to.equal('info'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/prior-auth/crd/ — Mental Health (parity) → info card",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/crd/", "host": ["{{base_url}}"], "path": ["api","prior-auth","crd",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hook\": \"order-select\",\n  \"hookInstance\": \"mhp-test-001\",\n  \"service_code\": \"90837\",\n  \"context\": { \"patientId\": \"10001\" }\n}"
+            },
+            "description": "CPT 90837 = psychotherapy — exempt from PA under mental health parity laws."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Card indicator info (mental health parity)', () => pm.expect(pm.response.json().cards[0].indicator).to.equal('info'));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/prior-auth/pas/ — Approved (with clinical notes)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/pas/", "host": ["{{base_url}}"], "path": ["api","prior-auth","pas",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"10001\",\n  \"service_code\": \"73721\",\n  \"diagnosis_code\": \"M17.11\",\n  \"ordering_provider\": \"2001^JONES^ROBERT\",\n  \"clinical_notes\": \"Patient has severe osteoarthritis of the right knee with failed conservative treatment including 6 weeks of PT.\"\n}"
+            },
+            "description": "Submits PA request with complete clinical notes → should be approved.\n\nReturns FHIR ClaimResponse Bundle with preAuthRef (PA number)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Decision is approved', () => pm.expect(body.decision).to.equal('approved'));",
+              "pm.test('PA number present', () => {",
+              "    pm.expect(body.prior_auth_number).to.be.a('string');",
+              "    pm.expect(body.prior_auth_number).to.match(/^PA-/);",
+              "});",
+              "pm.test('Valid dates present', () => {",
+              "    pm.expect(body.valid_from).to.be.a('string');",
+              "    pm.expect(body.valid_to).to.be.a('string');",
+              "});",
+              "pm.test('Response bundle is FHIR ClaimResponse', () => {",
+              "    const resource = body.response_bundle.entry[0].resource;",
+              "    pm.expect(resource.resourceType).to.equal('ClaimResponse');",
+              "    pm.expect(resource.use).to.equal('preauthorization');",
+              "});",
+              "console.log('PA approved:', body.prior_auth_number, 'valid', body.valid_from, 'to', body.valid_to);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/prior-auth/pas/ — Pended (missing clinical notes)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/pas/", "host": ["{{base_url}}"], "path": ["api","prior-auth","pas",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"10001\",\n  \"service_code\": \"73721\",\n  \"diagnosis_code\": \"M17.11\",\n  \"clinical_notes\": \"\"\n}"
+            },
+            "description": "No clinical notes → pended (additional info required)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Decision is pended', () => pm.expect(pm.response.json().decision).to.equal('pended'));",
+              "pm.test('No PA number for pended', () => pm.expect(pm.response.json().prior_auth_number).to.be.null);"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/prior-auth/pas/ — Denied (criteria not met)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/prior-auth/pas/", "host": ["{{base_url}}"], "path": ["api","prior-auth","pas",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"10001\",\n  \"service_code\": \"27447\",\n  \"diagnosis_code\": \"M17.11\",\n  \"clinical_notes\": \"Patient requests total knee replacement.\"\n}"
+            },
+            "description": "CPT 27447 = knee replacement. Notes don't mention osteoarthritis → denied (criteria not met)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Decision is denied', () => pm.expect(pm.response.json().decision).to.equal('denied'));",
+              "pm.test('No PA number for denial', () => pm.expect(pm.response.json().prior_auth_number).to.be.null);"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "07 – ADT / DFT / SIU Messaging",
+      "description": "HL7 ADT (admit/transfer/discharge), DFT billing, and SIU scheduling simulation.",
+      "item": [
+
+        {
+          "name": "POST /api/adt/trigger/ — A01 Admission",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/adt/trigger/", "host": ["{{base_url}}"], "path": ["api","adt","trigger",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"10001\",\n  \"event_type\": \"A01\",\n  \"note\": \"Inpatient admission — knee surgery\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/adt/messages/ (list)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/adt/messages/", "host": ["{{base_url}}"], "path": ["api","adt","messages",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/adt/messages/?event_type=A01 (filter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/adt/messages/?event_type=A01",
+              "host": ["{{base_url}}"],
+              "path": ["api","adt","messages",""],
+              "query": [{ "key": "event_type", "value": "A01" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/adt/dft/ (DFT billing messages)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/adt/dft/", "host": ["{{base_url}}"], "path": ["api","adt","dft",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/scheduling/trigger/ — SIU^S12 New Appointment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/scheduling/trigger/", "host": ["{{base_url}}"], "path": ["api","scheduling","trigger",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"10001\",\n  \"event_type\": \"S12\",\n  \"appointment_type\": \"FOLLOW_UP\",\n  \"provider_id\": \"2001\",\n  \"appointment_dt\": \"2025-02-01T10:00:00\",\n  \"duration_minutes\": 30\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/scheduling/messages/ (list)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/scheduling/messages/", "host": ["{{base_url}}"], "path": ["api","scheduling","messages",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "08 – C-CDA Documents",
+      "description": "C-CDA R2.1 clinical document generation (CCD, Discharge Summary, Progress Note).",
+      "item": [
+
+        {
+          "name": "POST /api/ccda/generate/ — CCD (Continuity of Care Document)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/ccda/generate/", "host": ["{{base_url}}"], "path": ["api","ccda","generate",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mrn\": \"10001\",\n  \"document_type\": \"CCD\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/ccda/generate/ — Discharge Summary",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/ccda/generate/", "host": ["{{base_url}}"], "path": ["api","ccda","generate",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mrn\": \"10001\",\n  \"document_type\": \"DISCHARGE_SUMMARY\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/ccda/documents/ (list)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/ccda/documents/", "host": ["{{base_url}}"], "path": ["api","ccda","documents",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "09 – Trace & Audit Logs",
+      "description": "Every inbound message produces a Trace ID + step-by-step audit record. Used for post-incident investigation.",
+      "item": [
+
+        {
+          "name": "GET /api/trace/logs/ (list)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/trace/logs/", "host": ["{{base_url}}"], "path": ["api","trace","logs",""] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('Is paginated list', () => {",
+              "    pm.expect(body).to.have.property('results');",
+              "    pm.expect(body.results).to.be.an('array');",
+              "});"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/trace/logs/?input_type=HL7 (filter by type)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/trace/logs/?input_type=HL7",
+              "host": ["{{base_url}}"],
+              "path": ["api","trace","logs",""],
+              "query": [{ "key": "input_type", "value": "HL7" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "POST /api/trace/ingest/ (raw payload logging)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/trace/ingest/", "host": ["{{base_url}}"], "path": ["api","trace","ingest",""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"input_type\": \"JSON\",\n  \"source_system\": \"postman-test\",\n  \"payload\": { \"test\": true, \"timestamp\": \"2024-01-15T12:00:00Z\" }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+              "pm.test('Has trace_id', () => pm.expect(pm.response.json()).to.have.property('trace_id'));"
+            ]}
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "10 – LOINC Reference",
+      "description": "Laboratory Observation Identifier Names and Codes (LOINC) — terminology lookup.",
+      "item": [
+
+        {
+          "name": "GET /api/loinc/search/?q=hemoglobin",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/loinc/search/?q=hemoglobin",
+              "host": ["{{base_url}}"],
+              "path": ["api","loinc","search",""],
+              "query": [{ "key": "q", "value": "hemoglobin" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+
+        {
+          "name": "GET /api/loinc/search/?q=glucose",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/loinc/search/?q=glucose",
+              "host": ["{{base_url}}"],
+              "path": ["api","loinc","search",""],
+              "query": [{ "key": "q", "value": "glucose" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+
+      ]
+    }
+
+  ]
+}

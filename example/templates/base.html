@@ -44,11 +44,11 @@
              href="{% url 'overview' %}">Overview</a>
         </li>
 
-        <!-- Interview Guide -->
+        <!-- Postman Collection -->
         <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'interview-guide' %}active{% endif %}"
-             href="{% url 'interview-guide' %}" style="color:#ffc107 !important; font-weight:600;">
-            Interview Guide
+          <a class="nav-link {% if request.resolver_match.url_name == 'postman-collection' %}active{% endif %}"
+             href="{% url 'postman-collection' %}">
+            Postman
           </a>
         </li>
 

@@ -1,17 +1,31 @@
 {% extends "base.html" %}
-{% block title %}404 – Not Found{% endblock %}
+{% block title %}404 – Page Not Found{% endblock %}
 
 {% block content %}
-<div class="text-center py-5">
-  <h1 class="display-4">404</h1>
-  <p class="lead">Page not found</p>
-  <p class="text-muted">
-    The requested path does not exist: <span class="font-monospace">{{ request.path }}</span>
-  </p>
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 text-center">
 
-  <div class="d-flex justify-content-center gap-2 flex-wrap mt-3">
-    <a class="btn btn-primary" href="{% url 'home' %}">Go Home</a>
-    <a class="btn btn-outline-primary" href="{% url 'trace-logs-page' %}">Trace Logs</a>
+    <div class="display-1 fw-bold text-primary mb-0">404</div>
+    <p class="fs-4 fw-semibold mb-1">Page Not Found</p>
+    <p class="text-muted mb-1">
+      The URL <code>{{ request.path }}</code> does not exist on this server.
+    </p>
+    <p class="text-muted small mb-4">
+      It may have been removed, renamed, or never existed.
+    </p>
+
+    <div class="d-flex justify-content-center gap-2 flex-wrap">
+      <a class="btn btn-primary" href="{% url 'home' %}">Go Home</a>
+      <a class="btn btn-outline-secondary" href="{% url 'overview' %}">Overview</a>
+      <a class="btn btn-outline-secondary" href="{% url 'fhir-explorer' %}">FHIR Explorer</a>
+    </div>
+
+    <hr class="my-4">
+    <p class="text-muted small">
+      Looking for the API? Try
+      <a href="{% url 'fhir-patient-search' %}">FHIR /Patient/</a> or
+      <a href="/api/docs/">Swagger UI</a>.
+    </p>
   </div>
 </div>
 {% endblock %}

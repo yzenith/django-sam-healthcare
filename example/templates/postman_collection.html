@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Postman Collection – API Reference{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="mb-1">Postman Collection</h2>
+    <p class="text-muted mb-0">
+      Complete API reference for all endpoints in this demo —
+      HL7 transforms, FHIR R4, SMART on FHIR OAuth2, Bulk Export, and Da Vinci Prior Auth.
+    </p>
+  </div>
+  <div class="col-auto d-flex align-items-center gap-2">
+    <a href="/static/postman_collection.json" download="django-sam-healthcare.postman_collection.json"
+       class="btn btn-primary">
+      Download JSON
+    </a>
+  </div>
+</div>
+
+<!-- Quick-start card -->
+<div class="card border-primary mb-4">
+  <div class="card-header bg-primary text-white fw-semibold">Quick Start</div>
+  <div class="card-body">
+    <ol class="mb-0">
+      <li class="mb-1">Click <strong>Download JSON</strong> above.</li>
+      <li class="mb-1">In Postman: <strong>File → Import</strong> and select the downloaded file.</li>
+      <li class="mb-1">Set the <code>base_url</code> collection variable to your server (default: <code>http://127.0.0.1:8000</code>).</li>
+      <li class="mb-1">Run <strong>Auth &amp; Setup → Login (session)</strong> first — this seeds your session cookie.</li>
+      <li>Run the full collection with the <strong>Collection Runner</strong> to see all tests pass.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Folder overview table -->
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Folders &amp; Request Count</div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Folder</th>
+          <th>Requests</th>
+          <th>What it covers</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Auth &amp; Setup</td><td>2</td><td>Django session login + seed demo data</td></tr>
+        <tr><td>2</td><td>HL7 Pipeline</td><td>6</td><td>ADT^A01, ORU^R01, SIU^S12 transforms; Mirth live feed; trace ingest</td></tr>
+        <tr><td>3</td><td>FHIR R4 API</td><td>8</td><td>CapabilityStatement, Patient search/read, Encounter, DiagnosticReport</td></tr>
+        <tr><td>4</td><td>SMART on FHIR – Auth Code + PKCE</td><td>5</td><td>Authorize (consent), token exchange, token info, introspect, revoke</td></tr>
+        <tr><td>5</td><td>SMART on FHIR – Client Credentials</td><td>2</td><td>System-level token grant + introspect</td></tr>
+        <tr><td>6</td><td>SMART on FHIR – Refresh Token</td><td>1</td><td>Rotate access token using refresh grant</td></tr>
+        <tr><td>7</td><td>Dynamic Client Registration</td><td>3</td><td>Register new client (RFC 7591); duplicate-name error; missing redirect_uris error</td></tr>
+        <tr><td>8</td><td>Bulk FHIR Export</td><td>6</td><td>$export kick-off, status poll, NDJSON download, invalid format error</td></tr>
+        <tr><td>9</td><td>Da Vinci Prior Auth</td><td>3</td><td>CRD order-select hook, PAS Claim Bundle submission, prior-auth UI</td></tr>
+        <tr><td>10</td><td>X12 &amp; Claims</td><td>2</td><td>837P claim generation, 835 ERA reconciliation report</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Collection variables -->
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Collection Variables</div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0 font-monospace">
+      <thead class="table-light">
+        <tr><th>Variable</th><th>Default value</th><th>Set by</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>base_url</td><td>http://127.0.0.1:8000</td><td>You</td></tr>
+        <tr><td>demo_username</td><td>demo</td><td>You</td></tr>
+        <tr><td>demo_password</td><td>demo1234</td><td>You</td></tr>
+        <tr><td>demo_redirect_uri</td><td>http://localhost:3000/callback</td><td>You</td></tr>
+        <tr><td>client_id</td><td>(blank)</td><td>Auto-set by Register request</td></tr>
+        <tr><td>access_token</td><td>(blank)</td><td>Auto-set by Token request</td></tr>
+        <tr><td>refresh_token</td><td>(blank)</td><td>Auto-set by Token request</td></tr>
+        <tr><td>auth_code</td><td>(blank)</td><td>Auto-set by Authorize request</td></tr>
+        <tr><td>code_verifier</td><td>(blank)</td><td>Auto-generated PKCE pre-request script</td></tr>
+        <tr><td>code_challenge</td><td>(blank)</td><td>Auto-generated PKCE pre-request script</td></tr>
+        <tr><td>patient_id</td><td>(blank)</td><td>Auto-set after Patient search</td></tr>
+        <tr><td>bulk_job_id</td><td>(blank)</td><td>Auto-set after $export kick-off</td></tr>
+        <tr><td>mirth_secret</td><td>dev-secret-change-me</td><td>You (matches Django env)</td></tr>
+        <tr><td>mirth_jwt</td><td>(blank)</td><td>Auto-generated JWT pre-request script</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pre-request script callout -->
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Pre-request Scripts</div>
+  <div class="card-body">
+    <h6>PKCE (Authorization Code flow)</h6>
+    <p class="text-muted small mb-2">
+      The <em>Authorize (consent page)</em> request auto-generates a PKCE pair using CryptoJS and stores
+      <code>code_verifier</code> + <code>code_challenge</code> as collection variables.
+      The Token exchange request reads them automatically.
+    </p>
+    <pre class="bg-light p-2 rounded small">const verifier = CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Base64url);
+const hash = CryptoJS.SHA256(verifier);
+const challenge = hash.toString(CryptoJS.enc.Base64url).replace(/=+$/, "");
+pm.collectionVariables.set("code_verifier", verifier);
+pm.collectionVariables.set("code_challenge", challenge);</pre>
+
+    <h6 class="mt-3">Mirth JWT</h6>
+    <p class="text-muted small mb-2">
+      The Mirth HL7 ingest request builds an <code>HS256</code> JWT signed with <code>mirth_secret</code>
+      (<code>iss=django-sam-healthcare</code>, <code>aud=mirth-connector</code>, 5-minute TTL).
+    </p>
+  </div>
+</div>
+
+<!-- Test assertions note -->
+<div class="alert alert-info mb-4">
+  <strong>Test coverage:</strong>
+  Every request includes <code>pm.test()</code> assertions (status codes, JSON schema, FHIR resourceType,
+  OAuth field presence, NDJSON content-type). Negative cases verify proper 4xx responses for
+  invalid PKCE verifiers, unsupported grant types, invalid bulk <code>_outputFormat</code>, and
+  duplicate client registrations.
+</div>
+
+<div class="card mb-2">
+  <div class="card-header fw-semibold">View Raw JSON</div>
+  <div class="card-body">
+    <p class="mb-2 text-muted small">
+      The collection source is version-controlled at
+      <code>docs/postman_collection.json</code> in the GitHub repo.
+    </p>
+    <a href="https://github.com/yzenith/django-sam-healthcare/blob/main/docs/postman_collection.json"
+       target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+      View on GitHub
+    </a>
+  </div>
+</div>
+{% endblock %}

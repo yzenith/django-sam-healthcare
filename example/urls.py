@@ -112,4 +112,7 @@ urlpatterns = [
          ),
          name="case-study-incident-001"),
     path("case-studies/incident-002/", TemplateView.as_view(template_name="case_studies/incident_002.html"), name="case-study-incident-002"),
+
+    # ── Postman collection viewer ─────────────────────────────────────────────
+    path("postman-collection/", TemplateView.as_view(template_name="postman_collection.html"), name="postman-collection"),
 ]

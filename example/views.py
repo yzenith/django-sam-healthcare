@@ -1017,3 +1017,7 @@ def health(request):
         "db": "ok" if db_ok else "error",
     }
     return JsonResponse(payload, status=200 if db_ok else 503)
+
+
+def custom_404(request, exception=None):
+    return render(request, "404.html", status=404)

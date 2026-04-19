@@ -44,7 +44,7 @@ else:
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes"}
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() in {"1", "true", "yes"}
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", ".vercel.app"]
 

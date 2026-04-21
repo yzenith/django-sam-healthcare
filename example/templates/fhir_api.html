@@ -111,9 +111,21 @@ function tryFhir(url, targetId) {
   const el = document.getElementById(targetId);
   el.textContent = "Loading…";
   fetch(url, { headers: { "Accept": "application/fhir+json" } })
-    .then(r => r.json().then(data => ({ status: r.status, data })))
+    .then(r => {
+      const status = r.status;
+      const ct = r.headers.get("Content-Type") || "";
+      if (ct.includes("json") || ct.includes("fhir")) {
+        return r.json().then(data => ({ status, data }));
+      }
+      return r.text().then(text => ({ status, data: { _raw: text } }));
+    })
     .then(({ status, data }) => {
-      el.textContent = `HTTP ${status}\n\n` + JSON.stringify(data, null, 2);
+      if (status === 401) {
+        el.innerHTML = `HTTP 401 — Not authenticated. <a href="/accounts/login/?next=${encodeURIComponent(url)}">Log in</a> to use the FHIR API.\n\n` +
+          JSON.stringify(data, null, 2);
+      } else {
+        el.textContent = `HTTP ${status}\n\n` + JSON.stringify(data, null, 2);
+      }
     })
     .catch(err => { el.textContent = "Error: " + err; });
 }

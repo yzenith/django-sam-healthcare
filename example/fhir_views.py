@@ -27,13 +27,26 @@ Design notes
 
 import uuid
 from datetime import datetime, timezone
+from functools import wraps
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-from django.contrib.auth.decorators import login_required
 
 from .models import HL7MessageLog
 from .hl7_utils import hl7_to_all, hl7_oru_to_fhir
+
+
+def fhir_login_required(view_func):
+    """Return 401 FHIR OperationOutcome instead of redirecting to login page."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return fhir_response(
+                _issue("error", "security", "Authentication required. Please log in."),
+                status=401,
+            )
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +201,7 @@ def fhir_metadata(request):
 # Patient
 # ---------------------------------------------------------------------------
 
-@login_required
+@fhir_login_required
 @require_GET
 def fhir_patient_search(request):
     """
@@ -227,7 +240,7 @@ def fhir_patient_search(request):
     return fhir_response(_bundle("Patient", patients, request_url=request.build_absolute_uri()))
 
 
-@login_required
+@fhir_login_required
 @require_GET
 def fhir_patient_read(request, patient_id: str):
     """
@@ -256,7 +269,7 @@ def fhir_patient_read(request, patient_id: str):
 # Encounter
 # ---------------------------------------------------------------------------
 
-@login_required
+@fhir_login_required
 @require_GET
 def fhir_encounter_search(request):
     """
@@ -279,7 +292,7 @@ def fhir_encounter_search(request):
     return fhir_response(_bundle("Encounter", encounters, request_url=request.build_absolute_uri()))
 
 
-@login_required
+@fhir_login_required
 @require_GET
 def fhir_encounter_read(request, encounter_id: str):
     """
@@ -306,7 +319,7 @@ def fhir_encounter_read(request, encounter_id: str):
 # DiagnosticReport (ORU)
 # ---------------------------------------------------------------------------
 
-@login_required
+@fhir_login_required
 @require_GET
 def fhir_report_search(request):
     """

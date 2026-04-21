@@ -127,7 +127,7 @@ class FHIRPatientAPITests(TestCase):
     def test_patient_search_requires_login(self):
         self.client.logout()
         r = self.client.get("/fhir/Patient/")
-        self.assertIn(r.status_code, [302, 403])
+        self.assertEqual(r.status_code, 401)
 
     def test_patient_search_returns_bundle(self):
         r = self.client.get("/fhir/Patient/")
@@ -221,7 +221,7 @@ class FHIREncounterAPITests(TestCase):
     def test_encounter_requires_login(self):
         self.client.logout()
         r = self.client.get("/fhir/Encounter/")
-        self.assertIn(r.status_code, [302, 403])
+        self.assertEqual(r.status_code, 401)
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +253,87 @@ class FHIRDiagnosticReportAPITests(TestCase):
         data = json.loads(r.content)
         for entry in data["entry"]:
             self.assertEqual(entry["resource"]["resourceType"], "DiagnosticReport")
+
+
+# ---------------------------------------------------------------------------
+# FHIR auth: 401 JSON instead of HTML redirect (regression tests)
+# ---------------------------------------------------------------------------
+
+class FHIRAuthTests(TestCase):
+    """Unauthenticated requests must return 401 FHIR JSON, never an HTML redirect."""
+
+    PROTECTED_URLS = [
+        "/fhir/Patient/",
+        "/fhir/Patient/10001/",
+        "/fhir/Encounter/",
+        "/fhir/Encounter/enc-1/",
+        "/fhir/DiagnosticReport/",
+    ]
+
+    def test_unauthenticated_patient_search_returns_401(self):
+        r = self.client.get("/fhir/Patient/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_unauthenticated_patient_read_returns_401(self):
+        r = self.client.get("/fhir/Patient/10001/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_unauthenticated_encounter_search_returns_401(self):
+        r = self.client.get("/fhir/Encounter/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_unauthenticated_encounter_read_returns_401(self):
+        r = self.client.get("/fhir/Encounter/enc-1/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_unauthenticated_diagnostic_report_returns_401(self):
+        r = self.client.get("/fhir/DiagnosticReport/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_401_response_is_fhir_json_content_type(self):
+        r = self.client.get("/fhir/Patient/")
+        self.assertIn("application/fhir+json", r["Content-Type"])
+
+    def test_401_body_is_operation_outcome(self):
+        r = self.client.get("/fhir/Patient/")
+        data = json.loads(r.content)
+        self.assertEqual(data["resourceType"], "OperationOutcome")
+
+    def test_401_body_has_security_issue_code(self):
+        r = self.client.get("/fhir/Patient/")
+        data = json.loads(r.content)
+        self.assertEqual(data["issue"][0]["code"], "security")
+
+    def test_401_body_is_parseable_json_not_html(self):
+        """Core regression: response must never be HTML (the original bug)."""
+        for url in self.PROTECTED_URLS:
+            with self.subTest(url=url):
+                r = self.client.get(url)
+                content = r.content.decode()
+                self.assertFalse(
+                    content.strip().lower().startswith("<!doctype"),
+                    msg=f"{url} returned HTML instead of JSON",
+                )
+                # Must be parseable as JSON
+                json.loads(content)
+
+    def test_no_redirect_on_unauthenticated_fhir_request(self):
+        """Must not redirect (302) — browsers follow redirects to HTML login page."""
+        for url in self.PROTECTED_URLS:
+            with self.subTest(url=url):
+                r = self.client.get(url)
+                self.assertNotEqual(r.status_code, 302, msg=f"{url} issued a redirect")
+
+    def test_authenticated_user_can_access_patient_search(self):
+        user = User.objects.create_user("authcheck", password="pass")
+        self.client.login(username="authcheck", password="pass")
+        r = self.client.get("/fhir/Patient/")
+        self.assertEqual(r.status_code, 200)
+
+    def test_metadata_is_public_no_auth_needed(self):
+        """CapabilityStatement /fhir/ must remain public."""
+        r = self.client.get("/fhir/")
+        self.assertEqual(r.status_code, 200)
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Da Vinci Prior Authorization (CRD / PAS / DTR){% endblock %}
+{% block title %}Da Vinci Prior Authorization (CRD / DTR / PAS){% endblock %}
 {% block content %}
 <div class="row mb-4">
   <div class="col-lg-10">
@@ -81,60 +81,21 @@
     </div>
   </div>
 
-  <!-- Step 2: PAS -->
+  <!-- Step 2: DTR -->
   <div class="col-lg-6">
     <div class="card h-100">
-      <div class="card-header">
-        <strong>Step 2 — PAS: Submit Prior Authorization</strong>
-        <span class="badge text-bg-secondary ms-2">POST /api/prior-auth/pas/</span>
-      </div>
+      <div class="card-header"><strong>Step 2 — DTR: Documentation Templates and Rules</strong></div>
       <div class="card-body">
-        <p class="small text-muted">
-          Provider submits a FHIR Bundle (Claim resource + supporting docs).
-          Payer responds synchronously with approved / pended / denied.
-          Pended means more documentation is needed (triggers DTR).
+        <p class="small text-muted mb-2">
+          When CRD indicates prior auth is required, the payer provides a FHIR Questionnaire
+          that auto-populates from the patient's EHR data using CQL (Clinical Quality Language)
+          expressions. The provider reviews, completes gaps, then proceeds to submit via PAS.
         </p>
-        <div class="mb-2">
-          <label class="form-label small">Patient ID</label>
-          <input id="pas-patient" class="form-control form-control-sm" value="10001">
-        </div>
-        <div class="mb-2">
-          <label class="form-label small">Service Code (CPT)</label>
-          <select id="pas-code" class="form-select form-select-sm">
-            <option value="73721" selected>73721 — MRI joint</option>
-            <option value="27447">27447 — Total knee replacement</option>
-            <option value="93306">93306 — Echocardiography</option>
-          </select>
-        </div>
-        <div class="mb-2">
-          <label class="form-label small">Clinical Notes</label>
-          <textarea id="pas-notes" class="form-control form-control-sm" rows="3"
-            placeholder="Patient has severe osteoarthritis with failed conservative treatment…"></textarea>
-        </div>
-        <button class="btn btn-sm btn-secondary" onclick="runPAS()">Submit Prior Auth</button>
-        <pre id="pas-result" class="bg-light border rounded p-3 small mt-3 mb-0" style="max-height:300px;overflow-y:auto;">(click Submit)</pre>
-      </div>
-    </div>
-  </div>
-
-  <!-- DTR explanation -->
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header"><strong>Step 3 — DTR: Documentation Templates and Rules</strong></div>
-      <div class="card-body row g-3">
-        <div class="col-md-6">
-          <p class="small text-muted mb-2">
-            When PAS responds with <strong>pended</strong>, the payer provides a FHIR Questionnaire
-            that auto-populates from the patient's EHR data using CQL (Clinical Quality Language)
-            expressions. The provider reviews, completes gaps, and re-submits.
-          </p>
-          <p class="small text-muted">
-            DTR eliminates fax-based prior auth by replacing static PDF forms with
-            smart FHIR questionnaires that pre-fill from structured EHR data.
-          </p>
-        </div>
-        <div class="col-md-6">
-          <pre class="bg-light border rounded p-3 small mb-0" style="font-size:0.7rem;">{
+        <p class="small text-muted mb-3">
+          DTR eliminates fax-based prior auth by replacing static PDF forms with
+          smart FHIR questionnaires that pre-fill from structured EHR data.
+        </p>
+        <pre class="bg-light border rounded p-3 small mb-0" style="font-size:0.7rem;">{
   "resourceType": "Questionnaire",
   "id": "knee-replacement-pa",
   "title": "Total Knee Replacement Prior Auth",
@@ -153,6 +114,44 @@
     }
   ]
 }</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: PAS -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <strong>Step 3 — PAS: Submit Prior Authorization</strong>
+        <span class="badge text-bg-secondary ms-2">POST /api/prior-auth/pas/</span>
+      </div>
+      <div class="card-body row g-3">
+        <div class="col-md-5">
+          <p class="small text-muted">
+            After DTR forms are completed, the provider submits a FHIR Bundle (Claim resource +
+            supporting docs). The payer responds synchronously with approved / pended / denied.
+          </p>
+          <div class="mb-2">
+            <label class="form-label small">Patient ID</label>
+            <input id="pas-patient" class="form-control form-control-sm" value="10001">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Service Code (CPT)</label>
+            <select id="pas-code" class="form-select form-select-sm">
+              <option value="73721" selected>73721 — MRI joint</option>
+              <option value="27447">27447 — Total knee replacement</option>
+              <option value="93306">93306 — Echocardiography</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Clinical Notes</label>
+            <textarea id="pas-notes" class="form-control form-control-sm" rows="3"
+              placeholder="Patient has severe osteoarthritis with failed conservative treatment…"></textarea>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="runPAS()">Submit Prior Auth</button>
+        </div>
+        <div class="col-md-7">
+          <pre id="pas-result" class="bg-light border rounded p-3 small mb-0 h-100" style="max-height:300px;overflow-y:auto;">(click Submit Prior Auth)</pre>
         </div>
       </div>
     </div>

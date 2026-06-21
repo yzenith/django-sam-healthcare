@@ -562,25 +562,34 @@ def hl7_to_fhir_encounter(segments, patient_id: str = None):
     return encounter
 
 
+def _x12_safe(value) -> str:
+    """Strip X12 delimiter characters (*~:^) so a field value can't break out
+    of its segment and inject extra elements/segments into the EDI output."""
+    s = str(value or "")
+    for ch in "*~:^":
+        s = s.replace(ch, "")
+    return s
+
+
 def fhir_to_837_claim(patient, encounter):
     """
     用非常简化的方式从 Patient + Encounter 生成一个 837 Claim 文本。
     真正项目会用 diagnosis/procedure 等；这里只展示结构和 mapping 思路。
     """
-    patient_id = (patient.get("identifier") or [{}])[0].get("value", "12345")
+    patient_id = _x12_safe((patient.get("identifier") or [{}])[0].get("value", "12345"))
     claim_id = patient_id  # demo 用病人号当 claim 号
     total = 150  # demo 固定金额
 
     # 简化：拿 name/address 生成 NM1/N3/N4
     name = (patient.get("name") or [{}])[0]
-    family = name.get("family", "")
-    given = (name.get("given") or [""])[0]
+    family = _x12_safe(name.get("family", ""))
+    given = _x12_safe((name.get("given") or [""])[0])
 
     addr = (patient.get("address") or [{}])[0]
-    line1 = (addr.get("line") or [""])[0]
-    city = addr.get("city", "")
-    state = addr.get("state", "")
-    postal = addr.get("postalCode", "")
+    line1 = _x12_safe((addr.get("line") or [""])[0])
+    city = _x12_safe(addr.get("city", ""))
+    state = _x12_safe(addr.get("state", ""))
+    postal = _x12_safe(addr.get("postalCode", ""))
 
     segments = []
 

@@ -31,22 +31,39 @@ if _env_file.exists():
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
-# Read from env in production; the insecure fallback is intentionally loud so you notice it.
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() in {"1", "true", "yes"}
+
+# Read from env in production; in DEBUG mode only, fall back to a known
+# insecure key so local dev works without a .env file.
 _SECRET_KEY_ENV = os.environ.get("DJANGO_SECRET_KEY", "")
 if _SECRET_KEY_ENV:
     SECRET_KEY = _SECRET_KEY_ENV
-else:
+elif DEBUG:
     import warnings
     SECRET_KEY = "django-insecure-=cldztbc4jg&xl0!x673!*v2_=p$$eu)=7*f#d0#zs$44xx-h^"
     warnings.warn(
         "DJANGO_SECRET_KEY env var is not set. Using insecure default — do NOT deploy to production.",
         stacklevel=2,
     )
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() in {"1", "true", "yes"}
+else:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY env var is required when DJANGO_DEBUG is not set."
+    )
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", ".vercel.app"]
+
+if not DEBUG:
+    # Vercel terminates TLS upstream and proxies plain HTTP internally.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    CSRF_TRUSTED_ORIGINS = ["https://*.vercel.app"]
 
 
 # Application definition

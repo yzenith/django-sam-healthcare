@@ -37,17 +37,12 @@ from .models import HL7MessageLog, PatientRecord, PatientImportRun, ClaimRecord,
 from .webhook_service import dispatch_webhooks_for_result
 
 # JWT settings – use env vars in real deployment
-from django.conf import settings as _django_settings
-from django.core.exceptions import ImproperlyConfigured
-
-_MIRTH_JWT_SECRET_ENV = os.environ.get("MIRTH_JWT_SECRET", "")
-if _MIRTH_JWT_SECRET_ENV:
-    MIRTH_JWT_SECRET = _MIRTH_JWT_SECRET_ENV
-elif _django_settings.DEBUG:
-    MIRTH_JWT_SECRET = "MIRTH_DEMO_SECRET_KEY"
-else:
-    raise ImproperlyConfigured(
-        "MIRTH_JWT_SECRET env var is required when DJANGO_DEBUG is not set."
+MIRTH_JWT_SECRET = os.environ.get("MIRTH_JWT_SECRET", "MIRTH_DEMO_SECRET_KEY")
+if MIRTH_JWT_SECRET == "MIRTH_DEMO_SECRET_KEY":
+    import warnings
+    warnings.warn(
+        "MIRTH_JWT_SECRET env var is not set. Using insecure default — do NOT deploy to production.",
+        stacklevel=2,
     )
 MIRTH_JWT_ALG = "HS256"
 MIRTH_JWT_AUD = "mirth-connector"

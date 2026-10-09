@@ -3,56 +3,56 @@
 {% block title %}Webhook Delivery Log{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="flex justify-between items-center mb-4">
   <h2 class="mb-0">Webhook Delivery Log</h2>
   <a href="{% url 'mirth-messages' %}" class="btn btn-sm btn-outline-secondary">← Mirth Feed</a>
 </div>
 
-<p class="text-muted">
+<p class="text-slate-500">
   Every successful HL7 transform triggers outbound FHIR webhook deliveries to downstream systems.
   This log shows what was sent, where, and whether the downstream accepted it.
   Failed deliveries require investigation — the patient data may not have reached the target system.
 </p>
 
 <!-- Status summary -->
-<div class="row g-3 mb-4">
-  <div class="col-sm-3">
+<div class="grid grid-cols-12 gap-4 mb-6">
+  <div class="col-span-12 sm:col-span-3">
     <div class="card text-center">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold">{{ totals.total|default:0 }}</div>
-        <div class="small text-muted">Total Attempts</div>
+        <div class="text-2xl font-bold">{{ totals.total|default:0 }}</div>
+        <div class="text-sm text-slate-500">Total Attempts</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-3">
+  <div class="col-span-12 sm:col-span-3">
     <div class="card text-center border-success">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-success">{{ totals.delivered|default:0 }}</div>
-        <div class="small text-muted">Delivered</div>
+        <div class="text-2xl font-bold text-success">{{ totals.delivered|default:0 }}</div>
+        <div class="text-sm text-slate-500">Delivered</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-3">
+  <div class="col-span-12 sm:col-span-3">
     <div class="card text-center border-danger">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-danger">{{ totals.failed|default:0 }}</div>
-        <div class="small text-muted">Failed</div>
+        <div class="text-2xl font-bold text-danger">{{ totals.failed|default:0 }}</div>
+        <div class="text-sm text-slate-500">Failed</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-3">
+  <div class="col-span-12 sm:col-span-3">
     <div class="card text-center border-warning">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-warning">{{ totals.pending|default:0 }}</div>
-        <div class="small text-muted">Pending</div>
+        <div class="text-2xl font-bold text-warning">{{ totals.pending|default:0 }}</div>
+        <div class="text-sm text-slate-500">Pending</div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Filters -->
-<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
-  <span class="text-muted small">Status:</span>
+<div class="mb-4 flex gap-2 flex-wrap items-center">
+  <span class="text-slate-500 text-sm">Status:</span>
   <a href="{% url 'webhook-log' %}{% if current_resource %}?resource_type={{ current_resource }}{% endif %}"
      class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
   {% for value, label in status_choices %}
@@ -63,7 +63,7 @@
   {% endfor %}
 
   {% if resource_types %}
-  <span class="text-muted small ms-3">Resource:</span>
+  <span class="text-slate-500 text-sm ml-4">Resource:</span>
   <a href="{% url 'webhook-log' %}{% if current_status %}?status={{ current_status }}{% endif %}"
      class="btn btn-sm {% if not current_resource %}btn-info{% else %}btn-outline-secondary{% endif %}">All</a>
   {% for rt in resource_types %}
@@ -108,7 +108,7 @@
           {% endif %}
         </td>
         <td><code>{{ d.fhir_resource_type }}</code></td>
-        <td class="small text-truncate" style="max-width:180px;" title="{{ d.target_url }}">
+        <td class="text-sm truncate" style="max-width:180px;" title="{{ d.target_url }}">
           {{ d.target_url }}
         </td>
         <td>
@@ -118,28 +118,28 @@
             </span>
           {% else %}—{% endif %}
         </td>
-        <td class="small">
+        <td class="text-sm">
           {% if d.duration_ms %}{{ d.duration_ms }}ms{% else %}—{% endif %}
         </td>
-        <td class="small text-center">
+        <td class="text-sm text-center">
           {{ d.attempt_count }}/{{ d.max_retries }}
         </td>
         <td>
           {% if d.trace_id %}
-            <a href="{% url 'mirth-messages' %}?trace_id={{ d.trace_id }}" class="small font-monospace">
+            <a href="{% url 'mirth-messages' %}?trace_id={{ d.trace_id }}" class="text-sm font-mono">
               {{ d.trace_id|slice:":8" }}…
             </a>
           {% else %}—{% endif %}
         </td>
-        <td class="small text-danger">
+        <td class="text-sm text-danger">
           {% if d.error_detail %}
             <span title="{{ d.error_detail }}">{{ d.error_detail|truncatechars:35 }}</span>
             {% if d.next_retry_at %}
-              <div class="text-muted" style="font-size:0.7rem;">retry at {{ d.next_retry_at|date:"H:i" }}</div>
+              <div class="text-slate-500" style="font-size:0.7rem;">retry at {{ d.next_retry_at|date:"H:i" }}</div>
             {% endif %}
           {% else %}—{% endif %}
         </td>
-        <td class="small text-muted">{{ d.created_at|date:"Y-m-d H:i:s" }}</td>
+        <td class="text-sm text-slate-500">{{ d.created_at|date:"Y-m-d H:i:s" }}</td>
         <td>
           {% if d.status != "DELIVERED" and d.attempt_count < d.max_retries %}
             <form method="post" action="{% url 'webhook-retry' d.pk %}">
@@ -149,7 +149,7 @@
               </button>
             </form>
           {% elif d.attempt_count >= d.max_retries %}
-            <span class="text-muted small">DLQ</span>
+            <span class="text-slate-500 text-sm">DLQ</span>
           {% endif %}
         </td>
       </tr>
@@ -162,13 +162,13 @@
   No webhook deliveries found.
   Send an ADT or SIU message through the
   <a href="{% url 'hl7-playground' %}">HL7 Playground</a> or
-  <a href="{% url 'mirth-hl7' %}" class="font-monospace">POST /api/mirth/hl7/</a>
+  <a href="{% url 'mirth-hl7' %}" class="font-mono">POST /api/mirth/hl7/</a>
   to trigger outbound webhooks.
 </div>
 {% endif %}
 
 <!-- Learning note -->
-<div class="alert alert-info small mt-4">
+<div class="alert alert-info text-sm mt-6">
   <strong>How this works:</strong>
   After each successful HL7 → FHIR transform, <code>dispatch_webhooks_for_result()</code> is called.
   It creates a <code>WebhookDelivery</code> record per FHIR resource and simulates an HTTP POST to the

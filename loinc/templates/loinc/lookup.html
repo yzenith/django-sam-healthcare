@@ -2,10 +2,10 @@
 {% block title %}LOINC Code Lookup | Healthcare Integration{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-start justify-content-between mb-2">
+<div class="flex items-start justify-between mb-2">
   <div>
     <h2 class="mb-1">LOINC Code Reference</h2>
-    <p class="text-muted mb-0 small">
+    <p class="text-slate-500 mb-0 text-sm">
       Logical Observation Identifiers Names and Codes (LOINC) — the universal standard for
       identifying medical laboratory observations, vital signs, and clinical document types.
       Used in HL7 OBX-3 observation identifiers and as FHIR <code>Observation.code</code>.
@@ -15,22 +15,22 @@
   <span class="badge bg-info text-dark mt-1">LOINC 2.77</span>
 </div>
 
-<div class="alert alert-secondary small py-2 mb-4">
+<div class="alert alert-secondary text-sm py-2 mb-6">
   <strong>API:</strong> <code>GET /api/loinc/search/?q=hemoglobin</code> &nbsp;·&nbsp;
   <code>GET /api/loinc/search/?category=CBC</code> &nbsp;·&nbsp;
   Returns JSON: <code>&#123;"count": N, "results": [&#123;"code","name","long_name","unit",...&#125;]&#125;</code>
 </div>
 
 <!-- ── Search bar ────────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4">
+<div class="card shadow-sm mb-6">
   <div class="card-body">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Search codes, names, or descriptions</label>
+    <div class="grid grid-cols-12 gap-2 items-end">
+      <div class="col-span-12 md:col-span-6">
+        <label class="form-label text-sm font-semibold">Search codes, names, or descriptions</label>
         <input id="searchInput" class="form-control" placeholder="e.g. hemoglobin, 718-7, troponin…" autofocus>
       </div>
-      <div class="col-md-4">
-        <label class="form-label small fw-semibold">Filter by category</label>
+      <div class="col-span-12 md:col-span-4">
+        <label class="form-label text-sm font-semibold">Filter by category</label>
         <select id="categoryFilter" class="form-select">
           <option value="">All categories</option>
           {% for cat in categories %}
@@ -38,8 +38,8 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button id="searchBtn" class="btn btn-primary w-100">Search</button>
+      <div class="col-span-12 md:col-span-2">
+        <button id="searchBtn" class="btn btn-primary w-full">Search</button>
       </div>
     </div>
   </div>
@@ -47,7 +47,7 @@
 
 <!-- ── Results ───────────────────────────────────────────────────────────── -->
 <div class="card shadow-sm">
-  <div class="card-header d-flex justify-content-between align-items-center">
+  <div class="card-header flex justify-between items-center">
     <strong>Results</strong>
     <span id="resultCount" class="badge bg-secondary">loading…</span>
   </div>
@@ -66,8 +66,8 @@
           </tr>
         </thead>
         <tbody id="resultsBody">
-          <tr><td colspan="7" class="text-center text-muted py-4">
-            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+          <tr><td colspan="7" class="text-center text-slate-500 py-6">
+            <div class="spinner-border spinner-border-sm mr-2"></div>Loading…
           </td></tr>
         </tbody>
       </table>
@@ -76,9 +76,9 @@
 </div>
 
 <!-- ── Category counts ──────────────────────────────────────────────────── -->
-<div class="mt-4">
-  <h6 class="text-muted">Browse by Category</h6>
-  <div id="categoryPills" class="d-flex flex-wrap gap-2">
+<div class="mt-6">
+  <h6 class="text-slate-500">Browse by Category</h6>
+  <div id="categoryPills" class="flex flex-wrap gap-2">
     {% for cat in categories %}
     <button class="btn btn-sm btn-outline-secondary cat-pill" data-cat="{{ cat }}">{{ cat }}</button>
     {% endfor %}
@@ -104,18 +104,18 @@ async function search(q="", category="") {
   const tbody = document.getElementById("resultsBody");
 
   if (!data.results.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No matches found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-500 py-6">No matches found.</td></tr>';
     return;
   }
 
   tbody.innerHTML = data.results.map(r => `
     <tr>
-      <td><code class="text-primary fw-semibold">${r.code}</code></td>
+      <td><code class="text-primary font-semibold">${r.code}</code></td>
       <td>${r.name}</td>
-      <td class="text-muted small">${r.long_name}</td>
+      <td class="text-slate-500 text-sm">${r.long_name}</td>
       <td><span class="badge bg-light text-dark border">${r.category}</span></td>
-      <td class="small">${r.specimen || "—"}</td>
-      <td class="small font-monospace">${r.unit || "—"}</td>
+      <td class="text-sm">${r.specimen || "—"}</td>
+      <td class="text-sm font-mono">${r.unit || "—"}</td>
       <td><span class="badge ${SCALE_COLORS[r.scale] || 'bg-secondary'}">${r.scale}</span></td>
     </tr>`).join("");
 }

@@ -4,8 +4,8 @@
 {% block content %}
 
 {% if request.GET.tour %}
-<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
-  <div class="fs-4">②</div>
+<div class="alert alert-success alert-dismissible show flex items-start gap-4 mb-6" role="alert">
+  <div class="text-2xl">②</div>
   <div>
     <strong>Guided Demo — Step 2 of 4: Trace Logs</strong><br>
     Every inbound message writes a TraceLog entry with step-by-step processing status (AUTH → VALIDATE → TRANSFORM).
@@ -13,33 +13,33 @@
     <br><strong>Try:</strong> Click a failed trace to see the root cause. Then continue to
     <a href="{% url 'dq-dashboard' %}?tour=1" class="alert-link">Step 3 → Data Quality Monitor</a>.
   </div>
-  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+  <button type="button" class="btn-close ml-auto" data-dismiss="alert"></button>
 </div>
 {% endif %}
 
-<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+<div class="flex flex-wrap gap-2 items-center justify-between mb-4">
   <div>
-    <h1 class="h4 mb-0">Trace Logs</h1>
-    <div class="text-muted small">Traceability timeline for inbound HL7 / JSON / EDI payloads</div>
+    <h1 class="text-2xl font-medium leading-tight mb-0">Trace Logs</h1>
+    <div class="text-slate-500 text-sm">Traceability timeline for inbound HL7 / JSON / EDI payloads</div>
   </div>
-  <div class="d-flex gap-2">
+  <div class="flex gap-2">
     <span class="badge text-bg-secondary">Total: {{ total_count }}</span>
     <span class="badge text-bg-danger">Errors: {{ error_count }}</span>
   </div>
 </div>
 
-<div class="card mb-3">
+<div class="card mb-4">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label small text-muted" for="trace_id">Trace ID contains</label>
+    <form method="get" class="grid grid-cols-12 gap-2 items-end">
+      <div class="col-span-12 md:col-span-4">
+        <label class="form-label text-sm text-slate-500" for="trace_id">Trace ID contains</label>
         <input id="trace_id" name="trace_id" class="form-control"
                value="{{ request.GET.trace_id|default:'' }}"
                placeholder="e.g. a1b2c3..." />
       </div>
 
-      <div class="col-md-2">
-        <label class="form-label small text-muted" for="input_type">Input Type</label>
+      <div class="col-span-12 md:col-span-2">
+        <label class="form-label text-sm text-slate-500" for="input_type">Input Type</label>
         <select id="input_type" name="input_type" class="form-select">
           <option value="">All</option>
           {% for v in input_types %}
@@ -48,8 +48,8 @@
         </select>
       </div>
 
-      <div class="col-md-2">
-        <label class="form-label small text-muted" for="status">Status</label>
+      <div class="col-span-12 md:col-span-2">
+        <label class="form-label text-sm text-slate-500" for="status">Status</label>
         <select id="status" name="status" class="form-select">
           <option value="">All</option>
           {% for v in statuses %}
@@ -58,8 +58,8 @@
         </select>
       </div>
 
-      <div class="col-md-2">
-        <label class="form-label small text-muted" for="has_errors">Has Errors</label>
+      <div class="col-span-12 md:col-span-2">
+        <label class="form-label text-sm text-slate-500" for="has_errors">Has Errors</label>
         <select id="has_errors" name="has_errors" class="form-select">
           <option value="">All</option>
           <option value="1" {% if request.GET.has_errors == "1" %}selected{% endif %}>Yes</option>
@@ -67,8 +67,8 @@
         </select>
       </div>
 
-      <div class="col-md-2">
-        <label class="form-label small text-muted" for="review_required">Review Required</label>
+      <div class="col-span-12 md:col-span-2">
+        <label class="form-label text-sm text-slate-500" for="review_required">Review Required</label>
         <select id="review_required" name="review_required" class="form-select">
           <option value="">All</option>
           <option value="1" {% if request.GET.review_required == "1" %}selected{% endif %}>Yes</option>
@@ -76,8 +76,8 @@
         </select>
       </div>
 
-      <div class="col-md-2">
-        <label class="form-label small text-muted" for="business_impact">Business Impact</label>
+      <div class="col-span-12 md:col-span-2">
+        <label class="form-label text-sm text-slate-500" for="business_impact">Business Impact</label>
         <select id="business_impact" name="business_impact" class="form-select">
           <option value="">All</option>
           {% for v in impact_levels %}
@@ -87,9 +87,9 @@
       </div>
 
 
-      <div class="col-md-2 d-flex gap-2">
-        <button class="btn btn-primary w-100" type="submit">Apply</button>
-        <a class="btn btn-outline-secondary w-100" href="{% url 'trace-logs-page' %}">Reset</a>
+      <div class="col-span-12 md:col-span-2 flex gap-2">
+        <button class="btn btn-primary w-full" type="submit">Apply</button>
+        <a class="btn btn-outline-secondary w-full" href="{% url 'trace-logs-page' %}">Reset</a>
       </div>
     </form>
   </div>
@@ -109,16 +109,16 @@
             <th>Review Required</th>
             <th>Business Impact</th>
             <th>Trace Available</th>
-            <th class="text-end">Duration</th>
+            <th class="text-right">Duration</th>
           </tr>
         </thead>
         <tbody>
           {% for log in logs %}
             <tr>
-              <!-- <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
-              <td class="text-nowrap">
+              <!-- <td class="whitespace-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+              <td class="whitespace-nowrap">
                 <a href="{% url 'trace-detail-page' trace_id=log.trace_id %}"
-                   class="font-monospace text-decoration-none">
+                   class="font-mono no-underline">
                   {{ log.trace_id }}
                 </a>
               </td>
@@ -146,13 +146,13 @@
 
               <td><span class="badge text-bg-light text-dark border">{{ log.output_type|default:"-" }}</span></td>
 
-              <td class="text-end text-nowrap">
+              <td class="text-right whitespace-nowrap">
                 {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
               </td> -->
 
-              <td class="text-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+              <td class="whitespace-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
 
-              <td class="font-monospace">
+              <td class="font-mono">
                 <a href="{% url 'trace-detail-page' trace_id=log.trace_id %}">{{ log.trace_id }}</a>
               </td>
 
@@ -196,14 +196,14 @@
                 {% endif %}
               </td>
 
-              <td class="text-end text-nowrap">
+              <td class="text-right whitespace-nowrap">
                 {% if log.duration_ms %}{{ log.duration_ms }} ms{% else %}-{% endif %}
               </td>
 
             </tr>
           {% empty %}
             <tr>
-              <td colspan="8" class="text-muted p-4">No logs found.</td>
+              <td colspan="8" class="text-slate-500 p-6">No logs found.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -212,11 +212,11 @@
   </div>
 
   {% if is_paginated %}
-    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <div class="small text-muted">
+    <div class="card-footer flex justify-between items-center flex-wrap gap-2">
+      <div class="text-sm text-slate-500">
         Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
       </div>
-      <div class="d-flex gap-2">
+      <div class="flex gap-2">
         {% if page_obj.has_previous %}
           <a class="btn btn-outline-secondary btn-sm"
              href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">

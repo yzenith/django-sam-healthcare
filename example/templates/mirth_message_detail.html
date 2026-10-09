@@ -3,8 +3,8 @@
 {% block title %}Message #{{ log.id }} – HL7 Detail{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-  <div class="col-lg-8">
+<div class="grid grid-cols-12 gap-x-6 mb-6">
+  <div class="col-span-12 lg:col-span-8">
     <nav aria-label="breadcrumb" class="mb-2">
       <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
@@ -14,8 +14,8 @@
         </li>
       </ol>
     </nav>
-    <h1 class="h3 mb-1">HL7 Message #{{ log.id }}</h1>
-    <p class="text-muted mb-0">
+    <h1 class="text-[1.75rem] font-medium leading-tight mb-1">HL7 Message #{{ log.id }}</h1>
+    <p class="text-slate-500 mb-0">
       Details for an HL7 message received from <strong>Mirth Connect</strong>,
       including the raw HL7 payload, parsed FHIR resources, and generated X12 837.
     </p>
@@ -25,26 +25,26 @@
   </div>
 
   <!-- Raw HL7 -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
         <h5 class="card-title">Raw HL7 v2 Message</h5>
-        <pre class="bg-light border rounded p-3 small mb-0">{{ log.raw_hl7 }}</pre>
+        <pre class="bg-light border rounded p-4 text-sm mb-0">{{ log.raw_hl7 }}</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR Patient -->
-  <div class="col-md-6">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6">
+    <div class="card h-full">
       <div class="card-body">
         <h5 class="card-title">FHIR Patient (JSON)</h5>
         {% if patient %}
           {{ patient|json_script:"patient-json" }}
           <pre id="patient-json-display"
-               class="bg-light border rounded p-3 small mb-0"></pre>
+               class="bg-light border rounded p-4 text-sm mb-0"></pre>
         {% else %}
-          <pre class="bg-light border rounded p-3 small mb-0">
+          <pre class="bg-light border rounded p-4 text-sm mb-0">
 (No Patient resource generated for this message.)
           </pre>
         {% endif %}
@@ -53,16 +53,16 @@
   </div>
 
   <!-- FHIR Encounter -->
-  <div class="col-md-6">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6">
+    <div class="card h-full">
       <div class="card-body">
         <h5 class="card-title">FHIR Encounter (JSON)</h5>
         {% if encounter %}
           {{ encounter|json_script:"encounter-json" }}
           <pre id="encounter-json-display"
-               class="bg-light border rounded p-3 small mb-0"></pre>
+               class="bg-light border rounded p-4 text-sm mb-0"></pre>
         {% else %}
-          <pre class="bg-light border rounded p-3 small mb-0">
+          <pre class="bg-light border rounded p-4 text-sm mb-0">
 (No Encounter resource generated for this message.)
           </pre>
         {% endif %}
@@ -71,11 +71,11 @@
   </div>
 
   <!-- X12 837 -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
         <h5 class="card-title">Generated X12 837</h5>
-        <pre class="bg-light border rounded p-3 small mb-0">
+        <pre class="bg-light border rounded p-4 text-sm mb-0">
 {{ x12_837|default:"(No X12 837 generated for this message.)" }}
         </pre>
       </div>
@@ -86,11 +86,11 @@
 
   {% if log.message_type == "ORU^R01" %}
     <!-- DiagnosticReport -->
-    <div class="col-12">
+    <div class="col-span-12">
       <div class="card">
         <div class="card-body">
           <h5 class="card-title">FHIR DiagnosticReport</h5>
-          <pre class="bg-light border rounded p-3 small mb-0">
+          <pre class="bg-light border rounded p-4 text-sm mb-0">
 {{ report_json|default:"(No DiagnosticReport generated for this message.)" }}
           </pre>
         </div>
@@ -98,11 +98,11 @@
     </div>
 
     <!-- Observations -->
-    <div class="col-12">
+    <div class="col-span-12">
       <div class="card">
         <div class="card-body">
           <h5 class="card-title">FHIR Observations (Lab Results)</h5>
-          <pre class="bg-light border rounded p-3 small mb-0">
+          <pre class="bg-light border rounded p-4 text-sm mb-0">
 {{ observations_json|default:"(No Observations generated for this message.)" }}
           </pre>
         </div>
@@ -111,11 +111,11 @@
   {% endif %}
 
   <!-- X12 835 -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
         <h5 class="card-title">Generated X12 835</h5>
-        <pre class="bg-light border rounded p-3 small mb-0">
+        <pre class="bg-light border rounded p-4 text-sm mb-0">
   {{ x12_835|default:"(No X12 835 generated for this message.)" }}
         </pre>
       </div>
@@ -123,11 +123,11 @@
   </div>
 
   <!-- Claim Reconciliation -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
         <h5 class="card-title">Claim Reconciliation</h5>
-        <pre class="bg-light border rounded p-3 small mb-0">
+        <pre class="bg-light border rounded p-4 text-sm mb-0">
   {{ claim_reconciliation_json|default:"(No reconciliation available.)" }}
         </pre>
       </div>

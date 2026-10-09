@@ -6,66 +6,298 @@
   <title>{% block title %}Healthcare Integration Engineer Portfolio{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Bootstrap 5 CDN -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  >
+  <!-- Fix cascade-layer order before any stylesheet declares a layer -->
+  <style>@layer theme, base, components, utilities;</style>
+
+  <!-- Tailwind CSS v4 (browser build: also picks up classes added by JS at runtime) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11/dist/index.global.js"></script>
+
+  <style type="text/tailwindcss">
+    /* Semantic colours, so bg-success / text-danger / border-warning etc. are
+       ordinary Tailwind utilities (also used by the page scripts). */
+    @theme {
+      --color-primary: #0d6efd;
+      --color-secondary: #6c757d;
+      --color-success: #198754;
+      --color-danger: #dc3545;
+      --color-warning: #ffc107;
+      --color-info: #0dcaf0;
+      --color-light: #f8f9fa;
+      --color-dark: #212529;
+      --color-purple: #6f42c1;
+    }
+
+    @layer base {
+      *, ::before, ::after, ::backdrop, ::file-selector-button { border-color: #dee2e6; }
+      body {
+        @apply bg-light text-dark leading-normal antialiased;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      h1, h2, h3, h4, h5, h6 { @apply mt-0 mb-2 leading-tight font-medium; }
+      h1, h2, h3 { @apply font-semibold; }
+      h1 { @apply text-[2rem] lg:text-[2.5rem]; }
+      h2 { @apply text-[2rem]; }
+      h3 { @apply text-[1.75rem]; }
+      h4 { @apply text-2xl; }
+      h5 { @apply text-xl; }
+      h6 { @apply text-base; }
+      p, dl, pre, blockquote { @apply mt-0 mb-4; }
+      ul, ol { @apply mt-0 mb-4 pl-8; }
+      ul { @apply list-disc; }
+      ol { @apply list-decimal; }
+      li > ul, li > ol { @apply mb-0; }
+      dt { @apply font-bold; }
+      dd { @apply mb-2 ml-0; }
+      a { @apply text-primary underline hover:text-blue-800; }
+      small { font-size: .875em; }
+      code { @apply font-mono text-[.875em] text-pink-600 break-words; }
+      a > code, pre code { color: inherit; font-size: inherit; }
+      pre { @apply font-mono text-[.875em] overflow-auto; }
+      hr { @apply my-4 border-t opacity-25; }
+      img, svg { display: inline-block; }
+      label { @apply inline-block; }
+      th { text-align: inherit; }
+      button:not(:disabled), [role="button"] { @apply cursor-pointer; }
+    }
+
+    @layer components {
+      /* ---- Buttons ---- */
+      .btn {
+        @apply inline-flex items-center justify-center gap-1 px-3 py-1.5 text-base leading-normal font-normal
+               text-center align-middle no-underline select-none cursor-pointer bg-transparent text-dark
+               border border-transparent rounded-md transition-colors duration-150;
+      }
+      .btn:focus-visible { @apply outline-none ring-4 ring-primary/25; }
+      .btn:disabled, .btn.disabled { @apply pointer-events-none opacity-65; }
+      .btn-lg { @apply px-4 py-2 text-xl rounded-lg; }
+      .btn-sm { @apply px-2 py-1 text-sm rounded; }
+      .btn-xs { @apply px-1.5 py-0.5 text-xs rounded; }
+      .btn-primary   { @apply bg-primary   border-primary   text-white hover:brightness-90 hover:text-white; }
+      .btn-secondary { @apply bg-secondary border-secondary text-white hover:brightness-90 hover:text-white; }
+      .btn-success   { @apply bg-success   border-success   text-white hover:brightness-90 hover:text-white; }
+      .btn-danger    { @apply bg-danger    border-danger    text-white hover:brightness-90 hover:text-white; }
+      .btn-info      { @apply bg-info      border-info      text-dark  hover:brightness-90 hover:text-dark; }
+      .btn-warning   { @apply bg-warning   border-warning   text-dark  hover:brightness-90 hover:text-dark; }
+      .btn-light     { @apply bg-light     border-light     text-dark  hover:brightness-95 hover:text-dark; }
+      .btn-dark      { @apply bg-dark      border-dark      text-white hover:brightness-125 hover:text-white; }
+      .btn-outline-primary   { @apply border-primary   text-primary   hover:bg-primary   hover:text-white; }
+      .btn-outline-secondary { @apply border-secondary text-secondary hover:bg-secondary hover:text-white; }
+      .btn-outline-success   { @apply border-success   text-success   hover:bg-success   hover:text-white; }
+      .btn-outline-danger    { @apply border-danger    text-danger    hover:bg-danger    hover:text-white; }
+      .btn-outline-info      { @apply border-info      text-info      hover:bg-info      hover:text-dark; }
+      .btn-outline-warning   { @apply border-warning   text-amber-600 hover:bg-warning   hover:text-dark; }
+      .btn-outline-light     { @apply border-light     text-light     hover:bg-light     hover:text-dark; }
+      .btn-outline-dark      { @apply border-dark      text-dark      hover:bg-dark      hover:text-white; }
+      .btn-link { @apply text-primary underline hover:text-blue-800; }
+      .btn-close {
+        @apply inline-flex items-center justify-center w-6 h-6 p-0 text-base leading-none text-dark
+               bg-transparent border-0 rounded opacity-50 hover:opacity-90 cursor-pointer;
+      }
+      .btn-close::before { content: "\2715"; }
+
+      /* ---- Cards ---- */
+      .card {
+        @apply relative flex flex-col min-w-0 break-words bg-white border border-black/10 rounded-xl;
+        box-shadow: 0 4px 18px rgb(15 52 96 / .08);
+      }
+      .card-header { @apply px-4 py-2 mb-0 bg-black/[.03] border-b border-black/10; }
+      .card-header:first-child { @apply rounded-t-xl; }
+      .card-footer { @apply px-4 py-2 bg-black/[.03] border-t border-black/10; }
+      .card-footer:last-child { @apply rounded-b-xl; }
+      .card-body { @apply flex-auto p-4; }
+      .card-title { @apply mb-2; }
+      .card-text:last-child { @apply mb-0; }
+
+      /* ---- Badges (colour comes from bg-* / text-bg-* utilities) ---- */
+      .badge {
+        @apply inline-block px-[.65em] py-[.35em] text-[.75em] font-bold leading-none text-white
+               text-center whitespace-nowrap align-baseline rounded-md;
+      }
+      .text-bg-primary   { @apply bg-primary   text-white; }
+      .text-bg-secondary { @apply bg-secondary text-white; }
+      .text-bg-success   { @apply bg-success   text-white; }
+      .text-bg-danger    { @apply bg-danger    text-white; }
+      .text-bg-dark      { @apply bg-dark      text-white; }
+      .text-bg-info      { @apply bg-info      text-dark; }
+      .text-bg-warning   { @apply bg-warning   text-dark; }
+      .text-bg-light     { @apply bg-light     text-dark; }
+
+      /* ---- Alerts ---- */
+      .alert { @apply relative mb-4 p-4 border border-transparent rounded-md; }
+      .alert-primary   { @apply bg-blue-50   border-blue-200   text-blue-900; }
+      .alert-secondary { @apply bg-slate-100 border-slate-200  text-slate-700; }
+      .alert-success   { @apply bg-green-50  border-green-200  text-green-900; }
+      .alert-danger    { @apply bg-red-50    border-red-200    text-red-900; }
+      .alert-warning   { @apply bg-amber-50  border-amber-200  text-amber-900; }
+      .alert-info      { @apply bg-cyan-50   border-cyan-200   text-cyan-900; }
+      .alert-light     { @apply bg-slate-50  border-slate-200  text-slate-600; }
+      .alert-dark      { @apply bg-slate-200 border-slate-300  text-slate-900; }
+      .alert-link { @apply font-bold text-inherit underline; }
+      .alert-dismissible { @apply pr-12; }
+      .alert-dismissible > .btn-close { @apply absolute top-3 right-3; }
+
+      /* ---- Tables ---- */
+      .table { @apply w-full mb-4 text-dark align-top border-collapse; caption-side: bottom; }
+      .table > thead { vertical-align: bottom; }
+      .table > tbody, .table tr, .table td, .table th { vertical-align: inherit; }
+      .table > :not(caption) > * > * { @apply px-2 py-2 border-b border-slate-200; }
+      .table-sm > :not(caption) > * > * { @apply px-1 py-1; }
+      .table-bordered > :not(caption) > * > * { @apply border border-slate-200; }
+      .table-borderless > :not(caption) > * > * { @apply border-0; }
+      .table-striped > tbody > tr:nth-of-type(odd) > * { @apply bg-black/[.03]; }
+      .table-hover > tbody > tr:hover > * { @apply bg-black/[.05]; }
+      .table-light, .table-light > *, .table-light > * > * { @apply bg-slate-100; }
+      .table-responsive { @apply overflow-x-auto; }
+
+      /* ---- Forms ---- */
+      .form-label { @apply inline-block mb-2; }
+      .form-text { @apply mt-1 text-sm text-slate-500; }
+      .form-control, .form-select {
+        @apply block w-full px-3 py-1.5 text-base leading-normal text-dark bg-white
+               border border-slate-300 rounded-md appearance-none transition;
+      }
+      .form-control:focus, .form-select:focus { @apply outline-none border-blue-300 ring-4 ring-primary/25; }
+      .form-control::placeholder { @apply text-slate-400; }
+      .form-control:disabled, .form-select:disabled, .form-control[readonly] { @apply bg-slate-100; }
+      .form-control::file-selector-button {
+        @apply -my-1.5 -ml-3 mr-3 px-3 py-1.5 text-dark bg-slate-100 border-0 border-r border-slate-300;
+      }
+      .form-control-sm { @apply px-2 py-1 text-sm rounded; }
+      .form-select {
+        @apply pr-9 bg-no-repeat;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        background-position: right .75rem center;
+        background-size: 16px 12px;
+      }
+      .form-select-sm { @apply py-1 pl-2 pr-8 text-sm rounded; }
+
+      /* ---- Modals (toggled by the script at the bottom of this file) ---- */
+      .modal { @apply fixed inset-0 z-50 hidden overflow-y-auto bg-black/50 p-4; }
+      .modal.show { @apply block; }
+      .modal-dialog { @apply relative w-full max-w-lg mx-auto my-8; }
+      .modal-lg { @apply max-w-4xl; }
+      .modal-xl { @apply max-w-6xl; }
+      .modal-content { @apply flex flex-col w-full bg-white rounded-xl shadow-xl; }
+      .modal-dialog-scrollable .modal-content { @apply max-h-[calc(100vh-4rem)] overflow-hidden; }
+      .modal-dialog-scrollable .modal-body { @apply overflow-y-auto; }
+      .modal-header { @apply flex items-center justify-between gap-4 p-4 border-b border-slate-200; }
+      .modal-title { @apply mb-0 text-xl leading-normal; }
+      .modal-body { @apply relative flex-auto p-4; }
+      .modal-footer { @apply flex flex-wrap items-center justify-end gap-2 p-3 border-t border-slate-200; }
+
+      /* ---- Dropdowns ---- */
+      .dropdown { @apply relative; }
+      .dropdown-toggle::after {
+        content: ""; display: inline-block; margin-left: .3em; vertical-align: .2em;
+        border-top: .3em solid; border-right: .3em solid transparent; border-left: .3em solid transparent;
+      }
+      .dropdown-menu {
+        @apply absolute left-0 top-full z-40 hidden min-w-48 mt-1 py-2 list-none bg-white
+               border border-black/15 rounded-md shadow-lg;
+      }
+      .dropdown-menu.show { @apply block; }
+      .dropdown-item {
+        @apply block w-full px-4 py-1.5 text-left whitespace-nowrap no-underline text-dark hover:bg-slate-100 hover:text-dark;
+      }
+      .dropdown-divider { @apply my-2 border-t border-black/15 opacity-100; }
+      .dropdown-menu-dark { @apply bg-slate-800 border-white/15; }
+      .dropdown-menu-dark .dropdown-item { @apply text-slate-200 hover:bg-white/10 hover:text-white; }
+      .dropdown-menu-dark .dropdown-divider { @apply border-white/15; }
+
+      /* ---- Accordion ---- */
+      .accordion-item { @apply overflow-hidden bg-white border border-slate-200 rounded-md; }
+      .accordion-item + .accordion-item { @apply -mt-px; }
+      .accordion-header { @apply m-0 text-base font-normal; }
+      .accordion-button {
+        @apply relative flex w-full items-center px-5 py-4 text-left text-base text-dark bg-white border-0 cursor-pointer;
+      }
+      .accordion-button::after {
+        content: ""; @apply ml-auto shrink-0 w-5 h-5 bg-no-repeat bg-contain transition-transform duration-200;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23212529' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
+      }
+      .accordion-button:not(.collapsed) { @apply bg-blue-50 text-blue-900; }
+      .accordion-button:not(.collapsed)::after { @apply rotate-180; }
+      .accordion-body { @apply px-5 py-4; }
+
+      /* ---- Nav pills ---- */
+      .nav { @apply flex flex-wrap pl-0 mb-0 list-none; }
+      .nav-link { @apply block px-4 py-2 no-underline text-primary rounded-md transition-colors hover:text-blue-800; }
+      .nav-pills .nav-link.active { @apply bg-primary text-white; }
+
+      /* ---- Progress, spinners, list groups, breadcrumbs ---- */
+      .progress { @apply flex h-4 overflow-hidden text-xs bg-slate-200 rounded-md; }
+      .progress-bar { @apply flex flex-col justify-center overflow-hidden text-center text-white whitespace-nowrap bg-primary transition-all; }
+      .spinner-border {
+        @apply inline-block w-8 h-8 align-[-0.125em] border-4 border-current border-r-transparent rounded-full animate-spin;
+      }
+      .spinner-border-sm { @apply w-4 h-4 border-2; }
+      .list-group { @apply flex flex-col pl-0 mb-0 list-none rounded-md; }
+      .list-group-item { @apply relative block px-4 py-2 bg-white border border-slate-200; }
+      .list-group-flush > .list-group-item { @apply border-x-0 border-t-0 rounded-none; }
+      .list-group-flush > .list-group-item:last-child { @apply border-b-0; }
+      .breadcrumb { @apply flex flex-wrap p-0 mb-4 list-none; }
+      .breadcrumb-item + .breadcrumb-item { @apply pl-2; }
+      .breadcrumb-item + .breadcrumb-item::before { content: "/"; @apply pr-2 text-slate-400; }
+      .breadcrumb-item.active { @apply text-slate-500; }
+    }
+  </style>
 
   <!-- Custom healthcare theme -->
   <link rel="stylesheet" href="{% static 'css/healthcare.css' %}">
 </head>
-<body class="bg-light">
+<body class="min-h-screen flex flex-col">
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-  <div class="container">
-    <a class="navbar-brand" href="{% url 'home' %}">
+<nav class="bg-linear-to-r from-[#007bff] to-[#00b8d9] text-white mb-6">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-y-2">
+    <a class="text-xl text-white no-underline hover:text-white whitespace-nowrap py-1" href="{% url 'home' %}">
       HL7 → FHIR → X12 Demo
     </a>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-            data-bs-target="#navbarNav" aria-controls="navbarNav"
+    <button type="button" class="lg:hidden inline-flex items-center rounded-md border border-white/30 px-3 py-1.5 text-white hover:bg-white/10"
+            data-toggle="navbar" data-target="#navbarNav" aria-controls="navbarNav"
             aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
     </button>
 
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
+    <div class="hidden lg:flex w-full lg:w-auto flex-col lg:flex-row lg:items-center" id="navbarNav">
+      <ul class="list-none pl-0 mb-0 flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-0">
 
         <!-- Home -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+        <li>
+          <a class="block px-2 py-2 rounded no-underline hover:text-white {% if request.resolver_match.url_name == 'home' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
              href="{% url 'home' %}">Home</a>
         </li>
 
         <!-- Overview -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'overview' %}active{% endif %}"
+        <li>
+          <a class="block px-2 py-2 rounded no-underline hover:text-white {% if request.resolver_match.url_name == 'overview' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
              href="{% url 'overview' %}">Overview</a>
         </li>
 
         <!-- Postman Collection -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'postman-collection' %}active{% endif %}"
+        <li>
+          <a class="block px-2 py-2 rounded no-underline hover:text-white {% if request.resolver_match.url_name == 'postman-collection' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
              href="{% url 'postman-collection' %}">
             Postman
           </a>
         </li>
 
         <!-- Integration Specs -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'integration-specs' %}active{% endif %}"
+        <li>
+          <a class="block px-2 py-2 rounded no-underline hover:text-white {% if request.resolver_match.url_name == 'integration-specs' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
              href="{% url 'integration-specs' %}">Int. Specs</a>
         </li>
 
         <!-- Pipeline dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'hl7-playground,mirth-messages,mirth-message-detail,trace-ingest-page,patient-import,sftp-ingest,sftp-run-detail-page' %}active{% endif %}"
-             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <li class="dropdown">
+          <button type="button"
+             class="dropdown-toggle w-full text-left px-2 py-2 rounded hover:text-white {% if request.resolver_match.url_name in 'hl7-playground,mirth-messages,mirth-message-detail,trace-ingest-page,patient-import,sftp-ingest,sftp-run-detail-page' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
+             data-toggle="dropdown" aria-expanded="false">
             Pipeline
-          </a>
-          <ul class="dropdown-menu dropdown-menu-dark">
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark max-lg:static max-lg:shadow-none">
             <li><a class="dropdown-item" href="{% url 'hl7-playground' %}">HL7 Playground</a></li>
             <li><a class="dropdown-item" href="{% url 'mirth-messages' %}">Mirth Live Feed</a></li>
             <li><a class="dropdown-item" href="{% url 'trace-ingest-page' %}">Trace Ingest</a></li>
@@ -76,13 +308,13 @@
         </li>
 
         <!-- ADT / DFT / SIU dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'adt-list,dft-list,siu-list' %}active{% endif %}"
-             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <li class="dropdown">
+          <button type="button"
+             class="dropdown-toggle w-full text-left px-2 py-2 rounded hover:text-white {% if request.resolver_match.url_name in 'adt-list,dft-list,siu-list' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
+             data-toggle="dropdown" aria-expanded="false">
             ADT / DFT / SIU
-          </a>
-          <ul class="dropdown-menu dropdown-menu-dark">
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark max-lg:static max-lg:shadow-none">
             <li><a class="dropdown-item" href="{% url 'adt-list' %}">ADT Simulation</a></li>
             <li><a class="dropdown-item" href="{% url 'dft-list' %}">DFT Billing (P03)</a></li>
             <li><a class="dropdown-item" href="{% url 'siu-list' %}">SIU Scheduling</a></li>
@@ -90,13 +322,13 @@
         </li>
 
         <!-- FHIR & Standards dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'fhir-explorer,smart-on-fhir,prior-auth,ccda-list,loinc-lookup' %}active{% endif %}"
-             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <li class="dropdown">
+          <button type="button"
+             class="dropdown-toggle w-full text-left px-2 py-2 rounded hover:text-white {% if request.resolver_match.url_name in 'fhir-explorer,smart-on-fhir,prior-auth,ccda-list,loinc-lookup' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
+             data-toggle="dropdown" aria-expanded="false">
             FHIR &amp; Standards
-          </a>
-          <ul class="dropdown-menu dropdown-menu-dark">
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark max-lg:static max-lg:shadow-none">
             <li><a class="dropdown-item" href="{% url 'fhir-explorer' %}">FHIR R4 API</a></li>
             <li><a class="dropdown-item" href="{% url 'smart-on-fhir' %}">SMART on FHIR</a></li>
             <li><a class="dropdown-item" href="{% url 'prior-auth' %}">Da Vinci Prior Auth</a></li>
@@ -107,13 +339,13 @@
         </li>
 
         <!-- Operations dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle
-               {% if request.resolver_match.url_name in 'trace-logs-page,claim-reconciliation,webhook-log,dq-dashboard' %}active{% endif %}"
-             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <li class="dropdown">
+          <button type="button"
+             class="dropdown-toggle w-full text-left px-2 py-2 rounded hover:text-white {% if request.resolver_match.url_name in 'trace-logs-page,claim-reconciliation,webhook-log,dq-dashboard' %}text-white bg-white/15{% else %}text-white/80{% endif %}"
+             data-toggle="dropdown" aria-expanded="false">
             Operations
-          </a>
-          <ul class="dropdown-menu dropdown-menu-dark">
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark max-lg:static max-lg:shadow-none lg:left-auto lg:right-0">
             <li><a class="dropdown-item" href="{% url 'dq-dashboard' %}">Data Quality Monitor</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{% url 'trace-logs-page' %}">Trace Logs</a></li>
@@ -126,10 +358,10 @@
       </ul>
 
       <!-- Auth -->
-      <div class="d-flex align-items-center ms-3">
+      <div class="flex items-center lg:ml-4 py-2 lg:py-0">
         {% if user.is_authenticated %}
-          <span class="text-white-50 small me-2">{{ user.username }}</span>
-          <form method="post" action="{% url 'logout' %}" class="d-inline">
+          <span class="text-white/60 text-sm mr-2">{{ user.username }}</span>
+          <form method="post" action="{% url 'logout' %}" class="inline">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-outline-light">Sign Out</button>
           </form>
@@ -142,12 +374,12 @@
 </nav>
 
 
-<main class="container pb-5">
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 pb-12">
   {% block content %}{% endblock %}
 </main>
 
-<footer class="border-top py-3 mt-auto bg-white">
-  <div class="container small text-muted">
+<footer class="border-t py-4 mt-auto bg-white">
+  <div class="max-w-7xl mx-auto px-4 text-sm text-slate-500">
     <div>© {% now "Y" %} Sam Yan – Healthcare Integration Demo</div>
     <div class="mt-1">
       <strong>Compliance Notice:</strong>
@@ -159,7 +391,70 @@
 </footer>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Minimal replacements for the Bootstrap JS plugins the templates use:
+  // data-toggle="dropdown|modal|collapse|navbar", data-dismiss="modal|alert".
+  (function () {
+    function targetOf(el) {
+      return document.querySelector(el.getAttribute('data-target') || el.getAttribute('href'));
+    }
+    function closeDropdowns(except) {
+      document.querySelectorAll('.dropdown-menu.show').forEach(function (menu) {
+        if (menu === except) return;
+        menu.classList.remove('show');
+        var toggle = menu.parentElement.querySelector('[data-toggle="dropdown"]');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+    function showModal(modal) {
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+    }
+    function hideModal(modal) {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      if (!document.querySelector('.modal.show')) document.body.classList.remove('overflow-hidden');
+    }
+
+    document.addEventListener('click', function (e) {
+      if (e.target.classList.contains('modal')) { hideModal(e.target); return; }  // backdrop click
+
+      var toggle = e.target.closest('[data-toggle]');
+      var dismiss = e.target.closest('[data-dismiss]');
+      var openMenu = toggle && toggle.getAttribute('data-toggle') === 'dropdown'
+        ? toggle.parentElement.querySelector('.dropdown-menu') : null;
+      closeDropdowns(openMenu);
+
+      if (dismiss) {
+        var kind = dismiss.getAttribute('data-dismiss');
+        if (kind === 'modal') hideModal(dismiss.closest('.modal'));
+        if (kind === 'alert') dismiss.closest('.alert').remove();
+        return;
+      }
+      if (!toggle) return;
+
+      var type = toggle.getAttribute('data-toggle');
+      if (toggle.tagName === 'A') e.preventDefault();
+      if (type === 'dropdown') {
+        var shown = openMenu.classList.toggle('show');
+        toggle.setAttribute('aria-expanded', String(shown));
+      } else if (type === 'modal') {
+        showModal(targetOf(toggle));
+      } else if (type === 'collapse' || type === 'navbar') {
+        var hidden = targetOf(toggle).classList.toggle('hidden');
+        toggle.classList.toggle('collapsed', hidden);
+        toggle.setAttribute('aria-expanded', String(!hidden));
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      closeDropdowns();
+      document.querySelectorAll('.modal.show').forEach(hideModal);
+    });
+  })();
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

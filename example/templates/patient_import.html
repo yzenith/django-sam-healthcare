@@ -2,12 +2,12 @@
 {% block title %}Patient CSV Import{% endblock %}
 
 {% block content %}
-<h1 class="mb-3">Patient CSV Import</h1>
+<h1 class="mb-4">Patient CSV Import</h1>
 
-<div class="card mb-4">
+<div class="card mb-6">
   <div class="card-body">
     <h5 class="card-title">Upload CSV</h5>
-    <p class="text-muted small mb-2">
+    <p class="text-slate-500 text-sm mb-2">
       Required columns: <code>mrn, first_name, last_name, dob</code>. Optional: gender, address1, city, state, zip_code.
     </p>
 
@@ -17,7 +17,7 @@
 
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
-      <div class="mb-3">
+      <div class="mb-4">
         <input class="form-control" type="file" name="csv_file" accept=".csv" required>
       </div>
       <button class="btn btn-primary" type="submit">Import Patients</button>
@@ -57,7 +57,7 @@
           <td>{{ r.duplicates_in_file }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="9" class="text-muted">No import runs yet.</td></tr>
+        <tr><td colspan="9" class="text-slate-500">No import runs yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

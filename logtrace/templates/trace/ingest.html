@@ -2,12 +2,12 @@
 {% block title %}Trace Ingest – Healthcare Integration Demo{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+<div class="flex flex-wrap gap-2 items-center justify-between mb-4">
   <div>
-    <h1 class="h4 mb-0">Trace Ingest</h1>
-    <div class="text-muted small">Create a TraceLog by submitting raw HL7 / JSON / EDI payload</div>
+    <h1 class="text-2xl font-medium leading-tight mb-0">Trace Ingest</h1>
+    <div class="text-slate-500 text-sm">Create a TraceLog by submitting raw HL7 / JSON / EDI payload</div>
   </div>
-  <div class="d-flex gap-2">
+  <div class="flex gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'trace-logs-page' %}">View Trace Logs</a>
   </div>
 </div>
@@ -23,8 +23,8 @@
     <form method="post">
       {% csrf_token %}
 
-      <div class="row g-3">
-        <div class="col-md-3">
+      <div class="grid grid-cols-12 gap-4">
+        <div class="col-span-12 md:col-span-3">
           <label class="form-label">Input Type</label>
           <select name="input_type" class="form-select">
             <option value="HL7" {% if default_input_type == "HL7" %}selected{% endif %}>HL7</option>
@@ -36,7 +36,7 @@
           <div class="form-text">Declared type; helps parsing/validation routing.</div>
         </div>
 
-        <div class="col-md-3">
+        <div class="col-span-12 md:col-span-3">
           <label class="form-label">Output Type</label>
           <select name="output_type" class="form-select">
             <option value="FHIR_JSON" {% if default_output_type == "FHIR_JSON" %}selected{% endif %}>FHIR_JSON</option>
@@ -47,20 +47,20 @@
           <div class="form-text">Used for trace summary + downstream mapping intent.</div>
         </div>
 
-        <div class="col-md-6">
+        <div class="col-span-12 md:col-span-6">
           <label class="form-label">Meta (JSON)</label>
-          <textarea name="meta" class="form-control font-monospace" rows="6"
+          <textarea name="meta" class="form-control font-mono" rows="6"
                     placeholder='{"env":"local"}'>{{ default_meta }}</textarea>
           <div class="form-text">Optional JSON context (source, channel, sender, correlation, etc.).</div>
         </div>
 
-        <div class="col-12">
+        <div class="col-span-12">
           <label class="form-label">Raw Payload</label>
-          <textarea name="raw_payload" class="form-control font-monospace" rows="10"
+          <textarea name="raw_payload" class="form-control font-mono" rows="10"
                     placeholder="Paste HL7 / JSON / EDI payload here...">{{ default_raw_payload }}</textarea>
         </div>
 
-        <div class="col-12 d-flex gap-2">
+        <div class="col-span-12 flex gap-2">
           <button class="btn btn-primary" type="submit">Create Trace</button>
           <a class="btn btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Reset</a>
         </div>
@@ -69,7 +69,7 @@
   </div>
 </div>
 
-<div class="alert alert-warning mt-3 mb-0 small">
+<div class="alert alert-warning mt-4 mb-0 text-sm">
   <strong>Note:</strong> This UI is for demo/operator testing only. Do not paste real PHI.
 </div>
 {% endblock %}

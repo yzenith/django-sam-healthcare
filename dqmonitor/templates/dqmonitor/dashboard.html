@@ -5,8 +5,8 @@
 {% block content %}
 
 {% if request.GET.tour %}
-<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
-  <div class="fs-4">③</div>
+<div class="alert alert-success alert-dismissible show flex items-start gap-4 mb-6" role="alert">
+  <div class="text-2xl">③</div>
   <div>
     <strong>Guided Demo — Step 3 of 4: Data Quality Monitor</strong><br>
     This is the operations dashboard — success rate, average latency, and quality flags across all pipelines.
@@ -14,22 +14,22 @@
     <br><strong>Try:</strong> Note the success rate and flag counts. Then continue to
     <a href="{% url 'claim-reconciliation' %}?tour=1" class="alert-link">Step 4 → Claim Reconciliation</a>.
   </div>
-  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+  <button type="button" class="btn-close ml-auto" data-dismiss="alert"></button>
 </div>
 {% endif %}
 
 <!-- ── Page header ─────────────────────────────────────────────────────────── -->
-<div class="row mb-4 align-items-end">
-  <div class="col-lg-8">
+<div class="grid grid-cols-12 gap-x-6 mb-6 items-end">
+  <div class="col-span-12 lg:col-span-8">
     <h1 class="mb-1">Data Quality Monitor</h1>
-    <p class="text-muted mb-0">
+    <p class="text-slate-500 mb-0">
       Real-time quality metrics across all inbound HL7 v2, FHIR, ADT, and DFT message pipelines.
       Flags incomplete or delayed messages before they impact downstream billing and care.
     </p>
   </div>
-  <div class="col-lg-4 text-end">
-    <span class="badge text-bg-success me-2" id="refreshBadge">Live</span>
-    <span class="text-muted small">
+  <div class="col-span-12 lg:col-span-4 text-right">
+    <span class="badge text-bg-success mr-2" id="refreshBadge">Live</span>
+    <span class="text-slate-500 text-sm">
       Refreshes every <strong>30 s</strong> &nbsp;·&nbsp;
       Last: <span id="lastRefresh">—</span>
     </span>
@@ -37,47 +37,47 @@
 </div>
 
 <!-- ── Source coverage bar ─────────────────────────────────────────────────── -->
-<div class="card border-0 bg-body-secondary mb-4 py-2">
+<div class="card border-0 bg-slate-100 mb-6 py-2">
   <div class="card-body py-2">
-    <div class="d-flex flex-wrap gap-4 align-items-center justify-content-center small">
+    <div class="flex flex-wrap gap-6 items-center justify-center text-sm">
       <div class="text-center">
-        <div class="fw-bold fs-5" id="srcHl7">{{ total_hl7 }}</div>
-        <div class="text-muted">HL7 Messages</div>
+        <div class="font-bold text-xl" id="srcHl7">{{ total_hl7 }}</div>
+        <div class="text-slate-500">HL7 Messages</div>
       </div>
-      <div class="vr"></div>
+      <div class="self-stretch w-px bg-current opacity-25"></div>
       <div class="text-center">
-        <div class="fw-bold fs-5" id="srcTrace">{{ trace_total }}</div>
-        <div class="text-muted">Trace Logs</div>
+        <div class="font-bold text-xl" id="srcTrace">{{ trace_total }}</div>
+        <div class="text-slate-500">Trace Logs</div>
       </div>
-      <div class="vr"></div>
+      <div class="self-stretch w-px bg-current opacity-25"></div>
       <div class="text-center">
-        <div class="fw-bold fs-5" id="srcAdt">{{ adt_total }}</div>
-        <div class="text-muted">ADT Events</div>
+        <div class="font-bold text-xl" id="srcAdt">{{ adt_total }}</div>
+        <div class="text-slate-500">ADT Events</div>
       </div>
-      <div class="vr"></div>
+      <div class="self-stretch w-px bg-current opacity-25"></div>
       <div class="text-center">
-        <div class="fw-bold fs-5" id="srcDft">{{ dft_total }}</div>
-        <div class="text-muted">DFT Billing</div>
+        <div class="font-bold text-xl" id="srcDft">{{ dft_total }}</div>
+        <div class="text-slate-500">DFT Billing</div>
       </div>
-      <div class="vr"></div>
+      <div class="self-stretch w-px bg-current opacity-25"></div>
       <div class="text-center">
-        <div class="fw-bold fs-5 {% if trace_failed > 0 %}text-danger{% endif %}" id="srcTraceFailed">{{ trace_failed }}</div>
-        <div class="text-muted">Trace Failures</div>
+        <div class="font-bold text-xl {% if trace_failed > 0 %}text-danger{% endif %}" id="srcTraceFailed">{{ trace_failed }}</div>
+        <div class="text-slate-500">Trace Failures</div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- ── Summary cards ───────────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
+<div class="grid grid-cols-12 gap-4 mb-6">
 
-  <div class="col-6 col-xl-3">
-    <div class="card h-100">
+  <div class="col-span-6 xl:col-span-3">
+    <div class="card h-full">
       <div class="card-body">
-        <div class="text-muted small mb-1">Success Rate</div>
-        <div class="display-6 fw-bold {% if success_rate >= 90 %}text-success{% elif success_rate >= 70 %}text-warning{% else %}text-danger{% endif %}"
+        <div class="text-slate-500 text-sm mb-1">Success Rate</div>
+        <div class="text-4xl font-bold {% if success_rate >= 90 %}text-success{% elif success_rate >= 70 %}text-warning{% else %}text-danger{% endif %}"
              id="cardSuccessRate">{{ success_rate }}%</div>
-        <div class="small text-muted mt-1">
+        <div class="text-sm text-slate-500 mt-1">
           <span id="cardTransformed">{{ total_hl7 }}</span> total HL7 messages
         </div>
         <div class="progress mt-2" style="height:4px;">
@@ -88,47 +88,47 @@
     </div>
   </div>
 
-  <div class="col-6 col-xl-3">
-    <div class="card h-100">
+  <div class="col-span-6 xl:col-span-3">
+    <div class="card h-full">
       <div class="card-body">
-        <div class="text-muted small mb-1">Avg Processing Latency</div>
-        <div class="display-6 fw-bold" id="cardLatency">{{ avg_latency_label }}</div>
-        <div class="small text-muted mt-1">
+        <div class="text-slate-500 text-sm mb-1">Avg Processing Latency</div>
+        <div class="text-4xl font-bold" id="cardLatency">{{ avg_latency_label }}</div>
+        <div class="text-sm text-slate-500 mt-1">
           Across <span id="cardTraceCount">{{ trace_total }}</span> traced messages
         </div>
         {% for lt in latency_by_type %}
-        <div class="small text-muted">{{ lt.input_type }}: {{ lt.avg_ms }} ms</div>
+        <div class="text-sm text-slate-500">{{ lt.input_type }}: {{ lt.avg_ms }} ms</div>
         {% endfor %}
       </div>
     </div>
   </div>
 
-  <div class="col-6 col-xl-3">
-    <div class="card h-100 {% if flagged_count > 0 %}border-warning{% endif %}">
+  <div class="col-span-6 xl:col-span-3">
+    <div class="card h-full {% if flagged_count > 0 %}border-warning{% endif %}">
       <div class="card-body">
-        <div class="text-muted small mb-1">Quality Flags</div>
-        <div class="display-6 fw-bold {% if flagged_count > 0 %}text-warning{% else %}text-success{% endif %}"
+        <div class="text-slate-500 text-sm mb-1">Quality Flags</div>
+        <div class="text-4xl font-bold {% if flagged_count > 0 %}text-warning{% else %}text-success{% endif %}"
              id="cardFlagged">{{ flagged_count }}</div>
-        <div class="small text-muted mt-1">
+        <div class="text-sm text-slate-500 mt-1">
           <span id="cardIncomplete">{{ incomplete_count }}</span> incomplete &nbsp;·&nbsp;
           <span id="cardDelayed">{{ delayed_count }}</span> delayed
         </div>
         {% if flagged_count > 0 %}
         <a href="#flagsTable" class="btn btn-sm btn-outline-warning mt-2">View flags ↓</a>
         {% else %}
-        <div class="small text-success mt-2">All messages healthy</div>
+        <div class="text-sm text-success mt-2">All messages healthy</div>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="col-6 col-xl-3">
-    <div class="card h-100 {% if error_rate > 10 %}border-danger{% endif %}">
+  <div class="col-span-6 xl:col-span-3">
+    <div class="card h-full {% if error_rate > 10 %}border-danger{% endif %}">
       <div class="card-body">
-        <div class="text-muted small mb-1">Error Rate</div>
-        <div class="display-6 fw-bold {% if error_rate > 10 %}text-danger{% elif error_rate > 0 %}text-warning{% else %}text-success{% endif %}"
+        <div class="text-slate-500 text-sm mb-1">Error Rate</div>
+        <div class="text-4xl font-bold {% if error_rate > 10 %}text-danger{% elif error_rate > 0 %}text-warning{% else %}text-success{% endif %}"
              id="cardErrorRate">{{ error_rate }}%</div>
-        <div class="small text-muted mt-1">
+        <div class="text-sm text-slate-500 mt-1">
           Delay threshold: {{ delay_threshold_s }}s
         </div>
         <div class="progress mt-2" style="height:4px;">
@@ -142,41 +142,41 @@
 </div>
 
 <!-- ── Charts row ──────────────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
+<div class="grid grid-cols-12 gap-4 mb-6">
 
   <!-- Status distribution donut -->
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-header small fw-semibold">Message Status Distribution</div>
-      <div class="card-body d-flex align-items-center justify-content-center">
+  <div class="col-span-12 md:col-span-4">
+    <div class="card h-full">
+      <div class="card-header text-sm font-semibold">Message Status Distribution</div>
+      <div class="card-body flex items-center justify-center">
         <canvas id="statusChart" style="max-height:220px;"></canvas>
       </div>
     </div>
   </div>
 
   <!-- Error count by message type -->
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-header small fw-semibold">Errors by Message Type</div>
-      <div class="card-body d-flex align-items-center justify-content-center">
+  <div class="col-span-12 md:col-span-4">
+    <div class="card h-full">
+      <div class="card-header text-sm font-semibold">Errors by Message Type</div>
+      <div class="card-body flex items-center justify-center">
         {% if error_data %}
         <canvas id="errorChart" style="max-height:220px;"></canvas>
         {% else %}
-        <p class="text-muted text-center py-4">No errors recorded</p>
+        <p class="text-slate-500 text-center py-6">No errors recorded</p>
         {% endif %}
       </div>
     </div>
   </div>
 
   <!-- Latency breakdown -->
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-header small fw-semibold">Avg Latency by Input Type</div>
+  <div class="col-span-12 md:col-span-4">
+    <div class="card h-full">
+      <div class="card-header text-sm font-semibold">Avg Latency by Input Type</div>
       <div class="card-body">
         {% if latency_by_type %}
         <canvas id="latencyChart" style="max-height:220px;"></canvas>
         {% else %}
-        <p class="text-muted text-center py-4">No latency data (TraceLog duration_ms not yet populated)</p>
+        <p class="text-slate-500 text-center py-6">No latency data (TraceLog duration_ms not yet populated)</p>
         {% endif %}
       </div>
     </div>
@@ -185,29 +185,29 @@
 </div>
 
 <!-- Hourly volume line chart — full width -->
-<div class="card mb-4">
-  <div class="card-header small fw-semibold">
+<div class="card mb-6">
+  <div class="card-header text-sm font-semibold">
     Hourly Message Volume — last 24 h
-    <span class="text-muted fw-normal ms-2">(total vs failed)</span>
+    <span class="text-slate-500 font-normal ml-2">(total vs failed)</span>
   </div>
   <div class="card-body">
     {% if hourly_labels %}
     <canvas id="hourlyChart" style="height:180px;"></canvas>
     {% else %}
-    <p class="text-muted text-center py-3">No messages in the last 24 hours.</p>
+    <p class="text-slate-500 text-center py-4">No messages in the last 24 hours.</p>
     {% endif %}
   </div>
 </div>
 
 <!-- ── Quality flags table ─────────────────────────────────────────────────── -->
-<div class="card mb-4" id="flagsTable">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <span class="small fw-semibold">
+<div class="card mb-6" id="flagsTable">
+  <div class="card-header flex items-center justify-between">
+    <span class="text-sm font-semibold">
       Quality Flags
-      <span class="badge {% if flagged_count > 0 %}text-bg-warning{% else %}text-bg-success{% endif %} ms-1"
+      <span class="badge {% if flagged_count > 0 %}text-bg-warning{% else %}text-bg-success{% endif %} ml-1"
             id="flagsBadge">{{ flagged_count }}</span>
     </span>
-    <span class="text-muted small">INCOMPLETE = missing required fields &nbsp;·&nbsp; DELAYED = stuck past {{ delay_threshold_s }}s threshold</span>
+    <span class="text-slate-500 text-sm">INCOMPLETE = missing required fields &nbsp;·&nbsp; DELAYED = stuck past {{ delay_threshold_s }}s threshold</span>
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
@@ -234,8 +234,8 @@
                 <span class="badge text-bg-secondary">{{ flag.flag_type }}</span>
               {% endif %}
             </td>
-            <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ flag.message_type }}</span></td>
-            <td class="font-monospace small">{{ flag.patient_id }}</td>
+            <td><span class="badge bg-blue-100 text-blue-800">{{ flag.message_type }}</span></td>
+            <td class="font-mono text-sm">{{ flag.patient_id }}</td>
             <td>
               {% if flag.processing_status == "FAILED" %}
                 <span class="badge text-bg-danger">Failed</span>
@@ -247,12 +247,12 @@
                 <span class="badge text-bg-secondary">{{ flag.processing_status }}</span>
               {% endif %}
             </td>
-            <td class="small text-muted">{{ flag.reason }}</td>
-            <td class="small text-nowrap text-muted">{{ flag.created_at|slice:":19"|default:"—" }}</td>
+            <td class="text-sm text-slate-500">{{ flag.reason }}</td>
+            <td class="text-sm whitespace-nowrap text-slate-500">{{ flag.created_at|slice:":19"|default:"—" }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="6" class="text-center text-success py-4">
+            <td colspan="6" class="text-center text-success py-6">
               No quality flags — all messages are complete and on time.
             </td>
           </tr>
@@ -265,7 +265,7 @@
 
 <!-- ── Recent messages table ───────────────────────────────────────────────── -->
 <div class="card">
-  <div class="card-header small fw-semibold">Recent HL7 Messages</div>
+  <div class="card-header text-sm font-semibold">Recent HL7 Messages</div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
@@ -282,9 +282,9 @@
         <tbody id="recentBody">
           {% for msg in recent %}
           <tr>
-            <td class="small text-nowrap text-muted">{{ msg.created_at|slice:":19" }}</td>
-            <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ msg.message_type|default:"—" }}</span></td>
-            <td class="font-monospace small">{{ msg.patient_id|default:"—" }}</td>
+            <td class="text-sm whitespace-nowrap text-slate-500">{{ msg.created_at|slice:":19" }}</td>
+            <td><span class="badge bg-blue-100 text-blue-800">{{ msg.message_type|default:"—" }}</span></td>
+            <td class="font-mono text-sm">{{ msg.patient_id|default:"—" }}</td>
             <td>
               {% if msg.processing_status == "TRANSFORMED" %}
                 <span class="badge text-bg-success">Transformed</span>
@@ -296,26 +296,26 @@
                 <span class="badge text-bg-secondary">{{ msg.processing_status }}</span>
               {% endif %}
             </td>
-            <td class="small">
+            <td class="text-sm">
               {% if msg.error_category and msg.error_category != "NONE" %}
                 <span class="badge text-bg-warning text-dark">{{ msg.error_category }}</span>
               {% else %}
-                <span class="text-muted">—</span>
+                <span class="text-slate-500">—</span>
               {% endif %}
             </td>
             <td class="text-center">
               {% if msg.has_x12 %}
-                <span class="badge bg-success-subtle text-success-emphasis">Yes</span>
+                <span class="badge bg-green-100 text-green-800">Yes</span>
               {% else %}
-                <span class="text-muted small">—</span>
+                <span class="text-slate-500 text-sm">—</span>
               {% endif %}
             </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="6" class="text-center text-muted py-4">
+            <td colspan="6" class="text-center text-slate-500 py-6">
               No HL7 messages yet.
-              <a href="{% url 'seed-demo-data' %}" class="text-decoration-none">Seed demo data</a> to populate.
+              <a href="{% url 'seed-demo-data' %}" class="no-underline">Seed demo data</a> to populate.
             </td>
           </tr>
           {% endfor %}
@@ -483,17 +483,17 @@ function renderFlagsTable(flags) {
   const tbody = document.getElementById("flagsBody");
   if (!tbody) return;
   if (!flags.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-success py-4">No quality flags — all messages are complete and on time.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-success py-6">No quality flags — all messages are complete and on time.</td></tr>`;
     return;
   }
   tbody.innerHTML = flags.map(f => `
     <tr>
       <td>${flagBadge(f.flag_type)}</td>
-      <td><span class="badge bg-primary-subtle text-primary-emphasis">${f.message_type}</span></td>
-      <td class="font-monospace small">${f.patient_id}</td>
+      <td><span class="badge bg-blue-100 text-blue-800">${f.message_type}</span></td>
+      <td class="font-mono text-sm">${f.patient_id}</td>
       <td>${statusBadge(f.processing_status)}</td>
-      <td class="small text-muted">${f.reason}</td>
-      <td class="small text-nowrap text-muted">${(f.created_at || "").slice(0, 19)}</td>
+      <td class="text-sm text-slate-500">${f.reason}</td>
+      <td class="text-sm whitespace-nowrap text-slate-500">${(f.created_at || "").slice(0, 19)}</td>
     </tr>`).join("");
 }
 
@@ -501,21 +501,21 @@ function renderRecentTable(rows) {
   const tbody = document.getElementById("recentBody");
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No messages.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-6">No messages.</td></tr>`;
     return;
   }
   const statusCls = { TRANSFORMED: "text-bg-success", FAILED: "text-bg-danger", VALIDATED: "text-bg-info", RECEIVED: "text-bg-secondary" };
   tbody.innerHTML = rows.map(m => `
     <tr>
-      <td class="small text-nowrap text-muted">${(m.created_at || "").slice(0, 19)}</td>
-      <td><span class="badge bg-primary-subtle text-primary-emphasis">${m.message_type || "—"}</span></td>
-      <td class="font-monospace small">${m.patient_id || "—"}</td>
+      <td class="text-sm whitespace-nowrap text-slate-500">${(m.created_at || "").slice(0, 19)}</td>
+      <td><span class="badge bg-blue-100 text-blue-800">${m.message_type || "—"}</span></td>
+      <td class="font-mono text-sm">${m.patient_id || "—"}</td>
       <td><span class="badge ${statusCls[m.processing_status] || 'text-bg-secondary'}">${m.processing_status}</span></td>
-      <td class="small">${m.error_category && m.error_category !== "NONE"
-        ? `<span class="badge text-bg-warning text-dark">${m.error_category}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td class="text-sm">${m.error_category && m.error_category !== "NONE"
+        ? `<span class="badge text-bg-warning text-dark">${m.error_category}</span>` : '<span class="text-slate-500">—</span>'}</td>
       <td class="text-center">${m.has_x12
-        ? '<span class="badge bg-success-subtle text-success-emphasis">Yes</span>'
-        : '<span class="text-muted small">—</span>'}</td>
+        ? '<span class="badge bg-green-100 text-green-800">Yes</span>'
+        : '<span class="text-slate-500 text-sm">—</span>'}</td>
     </tr>`).join("");
 }
 
@@ -586,15 +586,15 @@ let refreshTimer;
 async function fetchMetrics() {
   const badge = document.getElementById("refreshBadge");
   try {
-    if (badge) { badge.className = "badge text-bg-warning me-2"; badge.textContent = "Refreshing…"; }
+    if (badge) { badge.className = "badge text-bg-warning mr-2"; badge.textContent = "Refreshing…"; }
     const resp = await fetch(METRICS_URL);
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     updateDashboard(data);
-    if (badge) { badge.className = "badge text-bg-success me-2"; badge.textContent = "Live"; }
+    if (badge) { badge.className = "badge text-bg-success mr-2"; badge.textContent = "Live"; }
   } catch (err) {
     console.warn("DQ refresh failed:", err);
-    if (badge) { badge.className = "badge text-bg-danger me-2"; badge.textContent = "Error"; }
+    if (badge) { badge.className = "badge text-bg-danger mr-2"; badge.textContent = "Error"; }
   }
 }
 

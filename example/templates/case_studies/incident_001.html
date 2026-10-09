@@ -2,22 +2,22 @@
 {% block title %}{{ incident_id }} - Case Study{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+<div class="flex items-start justify-between flex-wrap gap-2">
   <div>
     <h1 class="mb-1">{{ incident_id }} — Incident Case Study</h1>
-    <p class="text-muted mb-0">
+    <p class="text-slate-500 mb-0">
       <strong>Title:</strong> {{ title }}
     </p>
   </div>
-  <div class="text-end">
+  <div class="text-right">
     <div class="badge bg-secondary">Severity: {{ severity }}</div>
-    <div class="small text-muted mt-1">Status: {{ status }}</div>
+    <div class="text-sm text-slate-500 mt-1">Status: {{ status }}</div>
   </div>
 </div>
 
 <hr>
 <!-- Trace log Navigation -->
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="flex flex-wrap gap-2 mb-4">
   <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-logs-page' %}">Trace Logs</a>
   <a class="btn btn-sm btn-outline-danger" href="{% url 'trace-logs-page' %}?review_required=1">Exceptions</a>
   <a class="btn btn-sm btn-outline-secondary" href="{% url 'trace-ingest-page' %}">Trace Ingest</a>
@@ -32,7 +32,7 @@
 
 
 <!-- Executive Summary -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Executive Summary (30 seconds)</h3>
   <ul>
     <li><strong>Symptoms:</strong> HL7 ingestion shows “success”, but downstream resource creation is incomplete (e.g., Encounter missing).</li>
@@ -41,7 +41,7 @@
     <li><strong>Current State:</strong> {{ status }}</li>
   </ul>
 
-  <div class="small text-muted">
+  <div class="text-sm text-slate-500">
     Tags:
     {% for t in tags %}
       <span class="badge text-bg-light border">{{ t }}</span>
@@ -50,7 +50,7 @@
 </section>
 
 <!-- Timeline -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Timeline</h3>
   <ul>
     <li><strong>T0 Detect:</strong> Detected via Exceptions / QA checks.</li>
@@ -62,12 +62,12 @@
 </section>
 
 <!-- Investigation -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>How I Investigated (Repeatable Runbook)</h3>
   <ol>
     <li>
       <strong>Traceability:</strong> Locate the record and capture correlation id.
-      <div class="small text-muted">
+      <div class="text-sm text-slate-500">
         Tip: use <em>Trace Logs</em> and filter by time window / review-required exceptions.
       </div>
     </li>
@@ -84,7 +84,7 @@
 </section>
 
 <!-- Evidence -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Evidence</h3>
   <ul>
         <li>
@@ -114,7 +114,7 @@
 </section>
 
 <!-- Root Cause -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Root Cause</h3>
   <p>
     <strong>Primary cause:</strong> HL7 parsing succeeded, but Encounter creation was gated on a field that was
@@ -128,7 +128,7 @@
 </section>
 
 <!-- Fix -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Fix</h3>
   <ul>
     <li>
@@ -149,7 +149,7 @@
 </section>
 
 <!-- Validation -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Validation</h3>
   <ul>
     <li><strong>Replay:</strong> re-run the same message/correlation id and confirm every step succeeds.</li>
@@ -158,7 +158,7 @@
 </section>
 
 <!-- Communication -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Communication Outputs (Engineer Deliverables)</h3>
   <ul>
     <li><strong>Partner/Customer:</strong> request 3 sample messages + timestamps + system version; confirm expected field availability.</li>
@@ -168,7 +168,7 @@
 </section>
 
 <!-- Prevention -->
-<section class="mb-4">
+<section class="mb-6">
   <h3>Prevention</h3>
   <ul>
     <li>Add validation guardrails for required fields and a clear “partial success” status.</li>

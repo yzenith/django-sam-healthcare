@@ -7,6 +7,7 @@
 <script>mermaid.initialize({ startOnLoad: true, theme: "default", fontSize: 14 });</script>
 
 <style>
+@layer components {
   .diagram-card   { background:#fff; border:1px solid #dee2e6; border-radius:.5rem; padding:1.5rem; margin-bottom:2rem; }
   .talking-points { background:#f0f7ff; border-left:4px solid #0d6efd; padding:1rem 1.25rem; border-radius:0 .4rem .4rem 0; margin-top:1rem; }
   .talking-points li { margin-bottom:.35rem; }
@@ -18,15 +19,16 @@
   pre.code-block  { background:#1e1e1e; color:#d4d4d4; border-radius:.4rem; padding:1rem; font-size:.82em; overflow-x:auto; }
   .mermaid        { text-align:center; }
   h2              { border-bottom:2px solid #e9ecef; padding-bottom:.4rem; margin-bottom:1.25rem; }
+}
 </style>
 
-<div class="container-fluid px-4 pb-5">
-  <div class="row">
+<div class="w-full px-4 px-6 pb-12">
+  <div class="grid grid-cols-12 gap-x-6">
 
     <!-- ── Sidebar TOC ─────────────────────────────────────────────────── -->
-    <div class="col-lg-2 d-none d-lg-block">
-      <div class="sticky-top pt-4" style="top:1rem;">
-        <div class="small fw-bold text-muted mb-2 text-uppercase">Sections</div>
+    <div class="col-span-12 lg:col-span-2 hidden lg:block">
+      <div class="sticky top-0 z-20 pt-6" style="top:1rem;">
+        <div class="text-sm font-bold text-slate-500 mb-2 uppercase">Sections</div>
         <a class="toc-link" href="#arch">1. Architecture</a>
         <a class="toc-link" href="#hl7-fhir">2. HL7 → FHIR Pipeline</a>
         <a class="toc-link" href="#smart">3. SMART on FHIR</a>
@@ -40,13 +42,13 @@
     </div>
 
     <!-- ── Main content ───────────────────────────────────────────────── -->
-    <div class="col-lg-10">
+    <div class="col-span-12 lg:col-span-10">
 
-      <div class="d-flex align-items-center justify-content-between mb-1">
+      <div class="flex items-center justify-between mb-1">
         <h1 class="mb-0">Interview Guide</h1>
         <span class="badge bg-warning text-dark">For your eyes only — prep material</span>
       </div>
-      <p class="text-muted mb-4">How the data flows through this system — one diagram per topic, with talking points for each.</p>
+      <p class="text-slate-500 mb-6">How the data flows through this system — one diagram per topic, with talking points for each.</p>
 
       <!-- ================================================================
            1. ARCHITECTURE
@@ -159,10 +161,10 @@ sequenceDiagram
 
       <!-- Field mapping reference -->
       <div class="diagram-card">
-        <h6 class="fw-semibold mb-3">HL7 Segment → FHIR Field Mapping</h6>
-        <div class="row">
-          <div class="col-md-6">
-            <table class="table table-sm table-bordered small">
+        <h6 class="font-semibold mb-4">HL7 Segment → FHIR Field Mapping</h6>
+        <div class="grid grid-cols-12 gap-x-6">
+          <div class="col-span-12 md:col-span-6">
+            <table class="table table-sm table-bordered text-sm">
               <thead class="table-light"><tr><th>HL7 Segment · Field</th><th>FHIR Resource · Element</th></tr></thead>
               <tbody>
                 <tr><td><code>MSH-9</code> message type</td><td>routing only (not stored in FHIR)</td></tr>
@@ -174,8 +176,8 @@ sequenceDiagram
               </tbody>
             </table>
           </div>
-          <div class="col-md-6">
-            <table class="table table-sm table-bordered small">
+          <div class="col-span-12 md:col-span-6">
+            <table class="table table-sm table-bordered text-sm">
               <thead class="table-light"><tr><th>HL7 Segment · Field</th><th>FHIR Resource · Element</th></tr></thead>
               <tbody>
                 <tr><td><code>PV1-2</code> patient class</td><td><code>Encounter.class</code> (IMP/AMB/EMER)</td></tr>
@@ -241,8 +243,8 @@ sequenceDiagram
 
       <!-- Scope table -->
       <div class="diagram-card">
-        <h6 class="fw-semibold mb-3">SMART Scope Reference</h6>
-        <table class="table table-sm table-bordered small">
+        <h6 class="font-semibold mb-4">SMART Scope Reference</h6>
+        <table class="table table-sm table-bordered text-sm">
           <thead class="table-light">
             <tr><th>Scope</th><th>Grant Type</th><th>Meaning</th></tr>
           </thead>
@@ -483,12 +485,12 @@ graph LR
       ================================================================ -->
       <div class="section-anchor" id="cheatsheet"></div>
       <h2>Quick Reference Cheat Sheet</h2>
-      <div class="row g-3 mb-5">
+      <div class="grid grid-cols-12 gap-4 mb-12">
 
-        <div class="col-md-4">
-          <div class="card h-100 border-primary">
-            <div class="card-header bg-primary text-white fw-semibold">Standards Stack</div>
-            <div class="card-body small">
+        <div class="col-span-12 md:col-span-4">
+          <div class="card h-full border-primary">
+            <div class="card-header bg-primary text-white font-semibold">Standards Stack</div>
+            <div class="card-body text-sm">
               <table class="table table-sm mb-0">
                 <tr><td><strong>HL7 v2</strong></td><td>Legacy pipe-delimited messages (ADT, ORU, ORM, MDM, SIU)</td></tr>
                 <tr><td><strong>FHIR R4</strong></td><td>Modern REST + JSON resource model</td></tr>
@@ -502,10 +504,10 @@ graph LR
           </div>
         </div>
 
-        <div class="col-md-4">
-          <div class="card h-100 border-success">
-            <div class="card-header bg-success text-white fw-semibold">Key Endpoints</div>
-            <div class="card-body small">
+        <div class="col-span-12 md:col-span-4">
+          <div class="card h-full border-success">
+            <div class="card-header bg-success text-white font-semibold">Key Endpoints</div>
+            <div class="card-body text-sm">
               <table class="table table-sm mb-0">
                 <tr><td><code>/.well-known/smart-configuration</code></td><td>SMART discovery</td></tr>
                 <tr><td><code>/.well-known/jwks.json</code></td><td>Key set</td></tr>
@@ -522,10 +524,10 @@ graph LR
           </div>
         </div>
 
-        <div class="col-md-4">
-          <div class="card h-100 border-warning">
-            <div class="card-header bg-warning fw-semibold">Interview Keywords</div>
-            <div class="card-body small">
+        <div class="col-span-12 md:col-span-4">
+          <div class="card h-full border-warning">
+            <div class="card-header bg-warning font-semibold">Interview Keywords</div>
+            <div class="card-body text-sm">
               <p class="mb-1"><strong>When asked about FHIR:</strong><br>
               "FHIR R4 resources, US Core profiles, CapabilityStatement, Implementation Guides"</p>
               <p class="mb-1"><strong>When asked about auth:</strong><br>

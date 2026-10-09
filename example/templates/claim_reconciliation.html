@@ -5,8 +5,8 @@
 {% block content %}
 
 {% if request.GET.tour %}
-<div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-3 mb-4" role="alert">
-  <div class="fs-4">④</div>
+<div class="alert alert-success alert-dismissible show flex items-start gap-4 mb-6" role="alert">
+  <div class="text-2xl">④</div>
   <div>
     <strong>Guided Demo — Step 4 of 4: Claim Reconciliation</strong><br>
     Claims flow from ADT A03 (discharge) → DFT P03 (charges) → X12 837 (submission) → X12 835 (remittance).
@@ -16,79 +16,79 @@
     Explore the rest of the system using the navigation above, or
     <a href="{% url 'home' %}" class="alert-link">return to the home page</a>.
   </div>
-  <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+  <button type="button" class="btn-close ml-auto" data-dismiss="alert"></button>
 </div>
 {% endif %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="flex justify-between items-center mb-4">
   <h2 class="mb-0">Claim Reconciliation Report</h2>
   <a href="{% url 'mirth-messages' %}" class="btn btn-sm btn-outline-secondary">← Mirth Feed</a>
 </div>
 
-<p class="text-muted">
+<p class="text-slate-500">
   Claims generated from ADT messages through the Mirth pipeline.
   Each row represents one billing claim: billed vs payer payment vs patient responsibility.
   This is the daily view a billing operations team uses to catch denials, underpayments, and unreconciled balances.
 </p>
 
 <!-- Aggregate Totals -->
-<div class="row g-3 mb-4">
-  <div class="col-sm-6 col-md-2">
+<div class="grid grid-cols-12 gap-4 mb-6">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold">{{ totals.total_claims|default:0 }}</div>
-        <div class="small text-muted">Total Claims</div>
+        <div class="text-2xl font-bold">{{ totals.total_claims|default:0 }}</div>
+        <div class="text-sm text-slate-500">Total Claims</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-md-2">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center border-secondary">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold">${{ totals.total_billed|floatformat:2|default:"0.00" }}</div>
-        <div class="small text-muted">Total Billed</div>
+        <div class="text-2xl font-bold">${{ totals.total_billed|floatformat:2|default:"0.00" }}</div>
+        <div class="text-sm text-slate-500">Total Billed</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-md-2">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center border-success">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-success">${{ totals.total_paid|floatformat:2|default:"0.00" }}</div>
-        <div class="small text-muted">Total Paid</div>
+        <div class="text-2xl font-bold text-success">${{ totals.total_paid|floatformat:2|default:"0.00" }}</div>
+        <div class="text-sm text-slate-500">Total Paid</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-md-2">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center border-warning">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-warning">${{ totals.total_patient_resp|floatformat:2|default:"0.00" }}</div>
-        <div class="small text-muted">Patient Resp.</div>
+        <div class="text-2xl font-bold text-warning">${{ totals.total_patient_resp|floatformat:2|default:"0.00" }}</div>
+        <div class="text-sm text-slate-500">Patient Resp.</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-md-2">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center border-danger">
       <div class="card-body py-2">
-        <div class="fs-4 fw-bold text-danger">${{ totals.total_balance_due|floatformat:2|default:"0.00" }}</div>
-        <div class="small text-muted">Balance Due</div>
+        <div class="text-2xl font-bold text-danger">${{ totals.total_balance_due|floatformat:2|default:"0.00" }}</div>
+        <div class="text-sm text-slate-500">Balance Due</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-md-2">
+  <div class="col-span-12 sm:col-span-6 md:col-span-2">
     <div class="card text-center">
       <div class="card-body py-2">
-        <div class="small">
+        <div class="text-sm">
           <span class="badge text-bg-success">{{ totals.paid_count }} Paid</span>
           <span class="badge text-bg-danger">{{ totals.denied_count }} Denied</span>
           <span class="badge text-bg-secondary">{{ totals.submitted_count }} Submitted</span>
         </div>
-        <div class="small text-muted mt-1">By Status</div>
+        <div class="text-sm text-slate-500 mt-1">By Status</div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Status Filter -->
-<div class="mb-3 d-flex gap-2 flex-wrap">
+<div class="mb-4 flex gap-2 flex-wrap">
   <a href="{% url 'claim-reconciliation' %}"
      class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
     All
@@ -110,10 +110,10 @@
         <th>Claim ID</th>
         <th>Patient ID</th>
         <th>Status</th>
-        <th class="text-end">Billed</th>
-        <th class="text-end">Paid</th>
-        <th class="text-end">Pt. Resp.</th>
-        <th class="text-end">Balance Due</th>
+        <th class="text-right">Billed</th>
+        <th class="text-right">Paid</th>
+        <th class="text-right">Pt. Resp.</th>
+        <th class="text-right">Balance Due</th>
         <th>Trace</th>
         <th>Created</th>
       </tr>
@@ -134,18 +134,18 @@
             <span class="badge text-bg-secondary">{{ claim.status }}</span>
           {% endif %}
         </td>
-        <td class="text-end">${{ claim.billed_amount }}</td>
-        <td class="text-end {% if claim.paid_amount > 0 %}text-success{% endif %}">${{ claim.paid_amount }}</td>
-        <td class="text-end">${{ claim.patient_responsibility }}</td>
-        <td class="text-end {% if claim.balance_due > 0 %}text-danger fw-semibold{% endif %}">${{ claim.balance_due }}</td>
+        <td class="text-right">${{ claim.billed_amount }}</td>
+        <td class="text-right {% if claim.paid_amount > 0 %}text-success{% endif %}">${{ claim.paid_amount }}</td>
+        <td class="text-right">${{ claim.patient_responsibility }}</td>
+        <td class="text-right {% if claim.balance_due > 0 %}text-danger font-semibold{% endif %}">${{ claim.balance_due }}</td>
         <td>
           {% if claim.trace_id %}
-            <a href="{% url 'mirth-messages' %}?trace_id={{ claim.trace_id }}" class="small font-monospace">
+            <a href="{% url 'mirth-messages' %}?trace_id={{ claim.trace_id }}" class="text-sm font-mono">
               {{ claim.trace_id|slice:":8" }}…
             </a>
           {% else %}—{% endif %}
         </td>
-        <td class="small text-muted">{{ claim.created_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-sm text-slate-500">{{ claim.created_at|date:"Y-m-d H:i" }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -159,12 +159,12 @@
   {% endif %}
   send an ADT message through the
   <a href="{% url 'hl7-playground' %}">HL7 Playground</a> or
-  <a href="{% url 'mirth-hl7' %}" class="font-monospace">POST /api/mirth/hl7/</a> to generate claims.
+  <a href="{% url 'mirth-hl7' %}" class="font-mono">POST /api/mirth/hl7/</a> to generate claims.
 </div>
 {% endif %}
 
 <!-- Learning note -->
-<div class="alert alert-info small mt-4">
+<div class="alert alert-info text-sm mt-6">
   <strong>How this works:</strong>
   Every ADT message processed by the Mirth endpoint generates an 837 claim and a simulated 835 ERA response.
   The reconciliation math is: <code>balance_due = billed − paid − patient_responsibility</code>.

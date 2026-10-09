@@ -3,10 +3,10 @@
 {% block title %}HL7 v2 Playground{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-  <div class="col-lg-10">
+<div class="grid grid-cols-12 gap-x-6 mb-6">
+  <div class="col-span-12 lg:col-span-10">
     <h1 class="mb-2">HL7 v2 Playground</h1>
-    <p class="text-muted">
+    <p class="text-slate-500">
       Paste an HL7 v2 message below, or pick a sample from the dropdown.
       The API validates, transforms, and returns
       <strong>FHIR R4</strong> resources and (for ADT) a
@@ -16,12 +16,12 @@
   </div>
 </div>
 
-<div class="row g-4">
+<div class="grid grid-cols-12 gap-6">
   <!-- Input card -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="flex justify-between items-center mb-2">
           <h5 class="card-title mb-0">Step 1: Paste or pick an HL7 v2 Message</h5>
           <select id="sample-picker" class="form-select form-select-sm" style="width:auto;">
             <option value="">— Load a sample —</option>
@@ -35,11 +35,11 @@
             <option value="siu_s15">SIU S15 – Cancelled Appointment</option>
           </select>
         </div>
-        <textarea id="hl7-input" class="form-control font-monospace" rows="10">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
+        <textarea id="hl7-input" class="form-control font-mono" rows="10">MSH|^~\&|ADT|HOSP|EHR|HOSP|202501291200||ADT^A01|123456|P|2.4
 PID|1||123456^^^HOSP^MR||DOE^JOHN||19900520|M|||789 PINE ST^^ALLEN^TX^75013
 PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
-        <button id="btn-transform" class="btn btn-primary mt-3">Transform HL7</button>
-        <span id="transform-spinner" class="ms-2 d-none">
+        <button id="btn-transform" class="btn btn-primary mt-4">Transform HL7</button>
+        <span id="transform-spinner" class="ml-2 hidden">
           <span class="spinner-border spinner-border-sm" role="status"></span> Processing…
         </span>
       </div>
@@ -47,81 +47,81 @@ PV1|1|I|2000^2012^01||||12345^SMITH^JANE|||SUR||||ADM||||</textarea>
   </div>
 
   <!-- FHIR Patient -->
-  <div class="col-md-6">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6">
+    <div class="card h-full">
       <div class="card-body">
         <h5 class="card-title">FHIR Patient</h5>
-        <pre id="patient-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
+        <pre id="patient-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR Encounter -->
-  <div class="col-md-6">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6">
+    <div class="card h-full">
       <div class="card-body">
         <h5 class="card-title">FHIR Encounter</h5>
-        <pre id="encounter-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
+        <pre id="encounter-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(Results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR DiagnosticReport (ORU) -->
-  <div class="col-md-6" id="panel-report">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6" id="panel-report">
+    <div class="card h-full">
       <div class="card-body">
-        <h5 class="card-title">FHIR DiagnosticReport <span class="badge text-bg-secondary small">ORU</span></h5>
-        <pre id="report-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
+        <h5 class="card-title">FHIR DiagnosticReport <span class="badge text-bg-secondary text-sm">ORU</span></h5>
+        <pre id="report-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR Observations (ORU) -->
-  <div class="col-md-6" id="panel-obs">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6" id="panel-obs">
+    <div class="card h-full">
       <div class="card-body">
-        <h5 class="card-title">FHIR Observations <span class="badge text-bg-secondary small">ORU</span></h5>
-        <pre id="obs-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
+        <h5 class="card-title">FHIR Observations <span class="badge text-bg-secondary text-sm">ORU</span></h5>
+        <pre id="obs-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(ORU results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR Appointment (SIU) -->
-  <div class="col-md-6" id="panel-appointment">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6" id="panel-appointment">
+    <div class="card h-full">
       <div class="card-body">
-        <h5 class="card-title">FHIR Appointment <span class="badge text-bg-secondary small">SIU</span></h5>
-        <pre id="appointment-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(SIU results will appear here)</pre>
+        <h5 class="card-title">FHIR Appointment <span class="badge text-bg-secondary text-sm">SIU</span></h5>
+        <pre id="appointment-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(SIU results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- FHIR ServiceRequest (ORM) -->
-  <div class="col-md-6" id="panel-service-request">
-    <div class="card h-100">
+  <div class="col-span-12 md:col-span-6" id="panel-service-request">
+    <div class="card h-full">
       <div class="card-body">
-        <h5 class="card-title">FHIR ServiceRequest <span class="badge text-bg-secondary small">ORM</span></h5>
-        <pre id="service-request-json" class="bg-light border rounded p-3 small mb-0" style="max-height:300px;overflow-y:auto;">(ORM results will appear here)</pre>
+        <h5 class="card-title">FHIR ServiceRequest <span class="badge text-bg-secondary text-sm">ORM</span></h5>
+        <pre id="service-request-json" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:300px;overflow-y:auto;">(ORM results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- X12 837 -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
-        <h5 class="card-title">Generated X12 837 Claim <span class="badge text-bg-secondary small">ADT</span></h5>
-        <pre id="x12-837" class="bg-light border rounded p-3 small mb-0" style="max-height:200px;overflow-y:auto;">(ADT results will appear here)</pre>
+        <h5 class="card-title">Generated X12 837 Claim <span class="badge text-bg-secondary text-sm">ADT</span></h5>
+        <pre id="x12-837" class="bg-light border rounded p-4 text-sm mb-0" style="max-height:200px;overflow-y:auto;">(ADT results will appear here)</pre>
       </div>
     </div>
   </div>
 
   <!-- ACK -->
-  <div class="col-12">
+  <div class="col-span-12">
     <div class="card">
       <div class="card-body">
         <h5 class="card-title">HL7 ACK Response</h5>
-        <pre id="ack-result" class="bg-light border rounded p-3 small mb-0">(ACK will appear here)</pre>
+        <pre id="ack-result" class="bg-light border rounded p-4 text-sm mb-0">(ACK will appear here)</pre>
       </div>
     </div>
   </div>
